@@ -15,6 +15,7 @@ describe('entity helpers', () => {
   it('groups territories with the same governing subject', () => {
     const entities = groupEntities([feature('Province A', 'Empire'), feature('Province B', 'Empire')])
     expect(entities).toHaveLength(1)
+    expect(entities[0].name).toBe('Empire')
     expect(entities[0].features).toHaveLength(2)
   })
 

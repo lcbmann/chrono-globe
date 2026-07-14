@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findNearestSnapshotIndex, formatYear, parseYear } from './time'
+import { buildTimelineYears, findNearestSnapshotIndex, findSourceSnapshotIndex, formatYear, parseYear } from './time'
 
 const snapshots = [
   { year: -500, filename: '', entities: 1, features: 1 },
@@ -23,5 +23,12 @@ describe('historical time helpers', () => {
   it('finds the closest available reconstruction', () => {
     expect(findNearestSnapshotIndex(snapshots, -350)).toBe(1)
     expect(findNearestSnapshotIndex(snapshots, 20)).toBe(2)
+  })
+
+  it('holds the latest source map across decade steps', () => {
+    const years = buildTimelineYears(snapshots)
+    expect(years).toContain(-323)
+    expect(years).not.toContain(0)
+    expect(findSourceSnapshotIndex(snapshots, -250)).toBe(1)
   })
 })

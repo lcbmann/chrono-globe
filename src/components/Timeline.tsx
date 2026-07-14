@@ -1,10 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
-import { findNearestSnapshotIndex, formatYear, parseYear } from '../lib/time'
-import type { Snapshot } from '../types'
+import { findNearestYearIndex, formatYear, parseYear } from '../lib/time'
 
 interface TimelineProps {
-  snapshots: Snapshot[]
+  years: number[]
   selectedIndex: number
   playing: boolean
   onSelectedIndexChange: (index: number) => void
@@ -12,18 +11,18 @@ interface TimelineProps {
 }
 
 export function Timeline({
-  snapshots,
+  years,
   selectedIndex,
   playing,
   onSelectedIndexChange,
   onPlayingChange,
 }: TimelineProps) {
-  const selected = snapshots[selectedIndex]
-  const [yearInput, setYearInput] = useState(selected ? formatYear(selected.year) : '')
+  const selected = years[selectedIndex]
+  const [yearInput, setYearInput] = useState(selected !== undefined ? formatYear(selected) : '')
   const [inputError, setInputError] = useState(false)
 
   useEffect(() => {
-    if (selected) setYearInput(formatYear(selected.year))
+    if (selected !== undefined) setYearInput(formatYear(selected))
   }, [selected])
 
   const commitYear = () => {
@@ -33,7 +32,7 @@ export function Timeline({
       return
     }
     setInputError(false)
-    onSelectedIndexChange(findNearestSnapshotIndex(snapshots, parsed))
+    onSelectedIndexChange(findNearestYearIndex(years, parsed))
   }
 
   const submitYear = (event: FormEvent) => {
@@ -41,7 +40,7 @@ export function Timeline({
     commitYear()
   }
 
-  if (!selected) return null
+  if (selected === undefined) return null
 
   return (
     <section className="timeline" aria-label="Historical timeline">
@@ -59,33 +58,34 @@ export function Timeline({
           type="button"
           className="icon-button"
           disabled={selectedIndex === 0}
-          aria-label="Previous reconstruction"
-          title="Previous reconstruction"
+          aria-label="Previous timeline step"
+          title="Previous timeline step"
           onClick={() => onSelectedIndexChange(selectedIndex - 1)}
         >
           <ChevronLeft size={20} />
         </button>
         <div className="range-wrap">
           <input
-            aria-label="Timeline reconstruction"
+            aria-label="Historical year"
             type="range"
             min={0}
-            max={snapshots.length - 1}
+            max={years.length - 1}
             value={selectedIndex}
             onChange={(event) => onSelectedIndexChange(Number(event.target.value))}
-            style={{ '--timeline-progress': `${(selectedIndex / (snapshots.length - 1)) * 100}%` } as React.CSSProperties}
+            style={{ '--timeline-progress': `${(selectedIndex / Math.max(1, years.length - 1)) * 100}%` } as React.CSSProperties}
           />
           <div className="range-labels" aria-hidden="true">
-            <span>{formatYear(snapshots[0].year)}</span>
-            <span>{formatYear(snapshots.at(-1)?.year || 2010)}</span>
+            <span>{formatYear(years[0])}</span>
+            <span>Decade steps after 1000 BCE</span>
+            <span>{formatYear(years.at(-1) || 2010)}</span>
           </div>
         </div>
         <button
           type="button"
           className="icon-button"
-          disabled={selectedIndex === snapshots.length - 1}
-          aria-label="Next reconstruction"
-          title="Next reconstruction"
+          disabled={selectedIndex === years.length - 1}
+          aria-label="Next timeline step"
+          title="Next timeline step"
           onClick={() => onSelectedIndexChange(selectedIndex + 1)}
         >
           <ChevronRight size={20} />

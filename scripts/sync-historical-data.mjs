@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { geoArea } from 'd3-geo'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const outputDirectory = join(root, 'public', 'data')
@@ -40,6 +41,7 @@ const cleanText = (value) => {
 
 const sourceIndex = await downloadJson(`${sourceBase}/index.json`)
 const maps = []
+const entityHistory = new Map()
 
 for (const [position, item] of sourceIndex.years.entries()) {
   const map = await downloadJson(`${sourceBase}/geojson/${item.filename}`)
@@ -55,6 +57,25 @@ for (const [position, item] of sourceIndex.years.entries()) {
   await writeFile(join(mapDirectory, filename), `${JSON.stringify(map)}\n`, 'utf8')
 
   const namedFeatures = map.features.filter((feature) => feature.properties?.NAME)
+  const entitiesThisYear = new Map()
+  for (const feature of namedFeatures) {
+    const properties = feature.properties
+    const key = properties.SUBJECTO || properties.PARTOF || properties.NAME
+    const entry = entitiesThisYear.get(key) || { area: 0, aliases: new Set() }
+    entry.area += geoArea(feature)
+    entry.aliases.add(properties.NAME)
+    entitiesThisYear.set(key, entry)
+  }
+  for (const [key, current] of entitiesThisYear) {
+    const history = entityHistory.get(key) || { key, name: key, aliases: new Set(), years: [], peakYear: item.year, maxArea: 0 }
+    current.aliases.forEach((alias) => history.aliases.add(alias))
+    history.years.push(item.year)
+    if (current.area > history.maxArea) {
+      history.maxArea = current.area
+      history.peakYear = item.year
+    }
+    entityHistory.set(key, history)
+  }
   maps.push({
     year: item.year,
     filename: `maps/${filename}`,
@@ -70,6 +91,13 @@ const commitResponse = await fetch(`https://api.github.com/repos/${sourceReposit
 })
 const commit = commitResponse.ok ? await commitResponse.json() : null
 
+const entities = [...entityHistory.values()].map((entity) => ({
+  ...entity,
+  aliases: [...entity.aliases].filter((alias) => alias !== entity.name).sort(),
+  firstYear: entity.years[0],
+  lastYear: entity.years.at(-1),
+})).sort((left, right) => left.name.localeCompare(right.name))
+
 await copyFile(
   join(root, 'node_modules', 'world-atlas', 'land-110m.json'),
   join(outputDirectory, 'land-110m.json'),
@@ -80,6 +108,7 @@ await writeFile(
   `${JSON.stringify(
     {
       maps,
+      entities,
       updatedAt: new Date().toISOString(),
       source: `https://github.com/${sourceRepository}`,
       sourceCommit: commit?.sha ?? null,

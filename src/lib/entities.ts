@@ -1,4 +1,5 @@
 import type { EntitySummary, HistoricalFeature } from '../types'
+import { civilizationProfiles } from '../data/civilizations'
 
 const palette = [
   '#e8a34a', '#4fb3a5', '#cf6d62', '#8b82d8', '#d0b64d', '#5d96cf',
@@ -9,6 +10,8 @@ export const entityKey = (feature: HistoricalFeature) =>
   feature.properties.SUBJECTO || feature.properties.PARTOF || feature.properties.NAME || 'Unknown'
 
 export const entityColor = (key: string) => {
+  const profile = civilizationProfiles.find((item) => item.names.some((name) => name.toLowerCase() === key.toLowerCase()))
+  if (profile) return profile.color
   let hash = 2166136261
   for (let index = 0; index < key.length; index += 1) {
     hash ^= key.charCodeAt(index)
@@ -21,8 +24,8 @@ export const groupEntities = (features: HistoricalFeature[]): EntitySummary[] =>
   const groups = new Map<string, EntitySummary>()
 
   for (const feature of features) {
-    const name = feature.properties.NAME?.trim()
-    if (!name) continue
+    const regionName = feature.properties.NAME?.trim()
+    if (!regionName) continue
     const key = entityKey(feature)
     const existing = groups.get(key)
     if (existing) {
@@ -33,8 +36,8 @@ export const groupEntities = (features: HistoricalFeature[]): EntitySummary[] =>
 
     groups.set(key, {
       key,
-      name,
-      subject: feature.properties.SUBJECTO || name,
+      name: key,
+      subject: feature.properties.SUBJECTO || key,
       partOf: feature.properties.PARTOF,
       control: feature.properties.CONTROL,
       precision: feature.properties.BORDERPRECISION || 1,

@@ -1,58 +1,65 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Database, Info, LoaderCircle } from 'lucide-react'
+import { Database, Globe2, Info, LoaderCircle, Map, Volume2, VolumeX } from 'lucide-react'
 import { GlobeView } from './components/GlobeView'
 import { TerritoryPanel } from './components/TerritoryPanel'
 import { Timeline } from './components/Timeline'
+import { eventsNearYear } from './data/events'
 import { useDatasetIndex, useHistoricalMap } from './hooks/useHistoricalData'
+import { useSoundscape } from './hooks/useSoundscape'
 import { entityKey, groupEntities } from './lib/entities'
-import { findNearestSnapshotIndex, formatYear, getEraLabel } from './lib/time'
-import type { EntitySummary, HistoricalFeature } from './types'
+import { buildTimelineYears, findNearestYearIndex, findSourceSnapshotIndex, formatYear, getEraLabel } from './lib/time'
+import type { HistoricalEntityIndex, HistoricalEvent, HistoricalFeature } from './types'
 import './App.css'
+
+type GlobeMode = 'atlas' | 'earth'
 
 function App() {
   const { index, error: indexError } = useDatasetIndex()
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<HistoricalEvent | null>(null)
   const [query, setQuery] = useState('')
   const [playing, setPlaying] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
-  const snapshots = index?.maps || []
-  const snapshot = snapshots[selectedIndex] || null
+  const [globeMode, setGlobeMode] = useState<GlobeMode>('atlas')
+  const { soundEnabled, toggleSound, chime } = useSoundscape()
+  const snapshots = useMemo(() => index?.maps || [], [index])
+  const timelineYears = useMemo(() => buildTimelineYears(snapshots), [snapshots])
+  const selectedYear = timelineYears[selectedIndex]
+  const sourceIndex = selectedYear === undefined ? -1 : findSourceSnapshotIndex(snapshots, selectedYear)
+  const snapshot = snapshots[sourceIndex] || null
   const { map, loadedFilename, loading, error: mapError } = useHistoricalMap(snapshot)
   const features = useMemo<HistoricalFeature[]>(() => {
     if (!map || loadedFilename !== snapshot?.filename) return []
     return map.features.filter((item): item is HistoricalFeature => Boolean(item.properties?.NAME))
   }, [loadedFilename, map, snapshot?.filename])
   const entities = useMemo(() => groupEntities(features), [features])
+  const nearbyEvents = useMemo(() => selectedYear === undefined ? [] : eventsNearYear(selectedYear), [selectedYear])
 
   useEffect(() => {
     if (!index || selectedIndex >= 0) return
-    setSelectedIndex(findNearestSnapshotIndex(index.maps, -323))
+    setSelectedIndex(findNearestYearIndex(buildTimelineYears(index.maps), -323))
   }, [index, selectedIndex])
 
   useEffect(() => {
-    if (selectedKey && !entities.some((entity) => entity.key === selectedKey)) setSelectedKey(null)
-  }, [entities, selectedKey])
-
-  useEffect(() => {
-    if (!playing || snapshots.length === 0) return
+    if (!playing || timelineYears.length === 0) return
     const timer = window.setInterval(() => {
       setSelectedIndex((current) => {
-        if (current >= snapshots.length - 1) {
+        if (current >= timelineYears.length - 1) {
           setPlaying(false)
           return current
         }
         return current + 1
       })
-    }, 1500)
+    }, 950)
     return () => window.clearInterval(timer)
-  }, [playing, snapshots.length])
+  }, [playing, timelineYears.length])
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement) return
       if (event.key === 'ArrowLeft' && selectedIndex > 0) setSelectedIndex(selectedIndex - 1)
-      if (event.key === 'ArrowRight' && selectedIndex < snapshots.length - 1) setSelectedIndex(selectedIndex + 1)
+      if (event.key === 'ArrowRight' && selectedIndex < timelineYears.length - 1) setSelectedIndex(selectedIndex + 1)
       if (event.key === ' ') {
         event.preventDefault()
         setPlaying((current) => !current)
@@ -60,35 +67,62 @@ function App() {
     }
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
-  }, [selectedIndex, snapshots.length])
+  }, [selectedIndex, timelineYears.length])
+
+  const selectYearIndex = (nextIndex: number) => {
+    setSelectedIndex(nextIndex)
+    setPlaying(false)
+    setSelectedEvent(null)
+    chime(330 + (nextIndex % 5) * 35)
+  }
+
+  const jumpToEntity = (entity: HistoricalEntityIndex) => {
+    setSelectedIndex(findNearestYearIndex(timelineYears, entity.peakYear))
+    setSelectedKey(entity.key)
+    setSelectedEvent(null)
+    setPlaying(false)
+    chime(523.25)
+  }
 
   const visibleError = indexError || mapError
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell mode-${globeMode}`}>
       <header className="app-header">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true"><i /></span>
           <div><strong>Chrono Globe</strong><span>The world, through time</span></div>
         </div>
         <div className="header-actions">
-          {index && <span className="dataset-status" title={`${index.maps.length} locally stored historical reconstructions`}><Database size={14} /> {index.maps.length} reconstructions</span>}
-          <button type="button" className="about-button" onClick={() => setAboutOpen(true)}><Info size={16} /> About the map</button>
+          {index && <span className="dataset-status" title={`${index.maps.length} locally stored historical reconstructions`}><Database size={14} /> {index.maps.length} source maps</span>}
+          <div className="segmented-control" aria-label="Globe appearance">
+            <button type="button" className={globeMode === 'atlas' ? 'active' : ''} onClick={() => setGlobeMode('atlas')} title="Atlas globe"><Map size={14} /> Atlas</button>
+            <button type="button" className={globeMode === 'earth' ? 'active' : ''} onClick={() => setGlobeMode('earth')} title="Realistic Earth"><Globe2 size={14} /> Earth</button>
+          </div>
+          <button type="button" className="header-icon-button" onClick={toggleSound} aria-label={soundEnabled ? 'Mute ambient sound' : 'Enable ambient sound'} title={soundEnabled ? 'Mute ambient sound' : 'Enable subtle ambient sound'}>
+            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
+          <button type="button" className="about-button" onClick={() => setAboutOpen(true)}><Info size={16} /> About</button>
         </div>
       </header>
 
       <main className="workspace">
         <section className="globe-column">
           <div className="time-readout" aria-live="polite">
-            <span>{snapshot ? getEraLabel(snapshot.year) : 'Loading atlas'}</span>
-            <h1>{snapshot ? formatYear(snapshot.year) : '—'}</h1>
-            {snapshot && <small>Reconstruction {selectedIndex + 1} of {snapshots.length}</small>}
+            <span>{selectedYear !== undefined ? getEraLabel(selectedYear) : 'Loading atlas'}</span>
+            <h1>{selectedYear !== undefined ? formatYear(selectedYear) : '—'}</h1>
+            {snapshot && <small>{snapshot.year === selectedYear ? 'Source reconstruction' : `Borders from ${formatYear(snapshot.year)} source map`}</small>}
           </div>
           <GlobeView
             features={features}
             selectedKey={selectedKey}
-            onSelect={(feature) => setSelectedKey(entityKey(feature))}
-            onClearSelection={() => setSelectedKey(null)}
+            events={nearbyEvents}
+            selectedEvent={selectedEvent}
+            mode={globeMode}
+            history={index?.entities || []}
+            onSelect={(feature) => { setSelectedKey(entityKey(feature)); setSelectedEvent(null); chime(440) }}
+            onEventSelect={(event) => { setSelectedEvent(event); setSelectedKey(event.entity || null); chime(659.25) }}
+            onClearSelection={() => { setSelectedKey(null); setSelectedEvent(null) }}
           />
           {(loading || (!index && !visibleError)) && <div className="loading-pill"><LoaderCircle size={15} className="spin" /> Loading reconstruction</div>}
           {visibleError && (
@@ -101,19 +135,25 @@ function App() {
 
         <TerritoryPanel
           entities={entities}
+          history={index?.entities || []}
           selectedKey={selectedKey}
+          selectedEvent={selectedEvent}
+          nearbyEvents={nearbyEvents}
+          year={selectedYear}
           query={query}
           onQueryChange={setQuery}
-          onSelect={(entity: EntitySummary) => setSelectedKey(entity.key)}
-          onClear={() => setSelectedKey(null)}
+          onSelect={(entity) => { setSelectedKey(entity.key); setSelectedEvent(null); chime(440) }}
+          onHistoricalSelect={jumpToEntity}
+          onEventSelect={(event) => { setSelectedEvent(event); setSelectedKey(event.entity || null); chime(659.25) }}
+          onClear={() => { setSelectedKey(null); setSelectedEvent(null) }}
         />
       </main>
 
       <Timeline
-        snapshots={snapshots}
+        years={timelineYears}
         selectedIndex={selectedIndex}
         playing={playing}
-        onSelectedIndexChange={(nextIndex) => { setSelectedIndex(nextIndex); setPlaying(false) }}
+        onSelectedIndexChange={selectYearIndex}
         onPlayingChange={setPlaying}
       />
 
@@ -123,12 +163,13 @@ function App() {
             <button type="button" className="modal-close" onClick={() => setAboutOpen(false)} aria-label="Close about dialog">×</button>
             <div className="eyebrow">About this atlas</div>
             <h2 id="about-title">History has fuzzy edges.</h2>
-            <p>Chrono Globe shows broad, global reconstructions at selected moments in time. Ancient borders often represented influence, settlement, or tribute rather than surveyed lines.</p>
-            <p>Use it to explore patterns and ask better questions—not as a definitive source for legal, academic, or territorial claims.</p>
+            <p>The cursor moves in decades through the historical era, while borders remain on the latest available source reconstruction. That makes change legible without pretending an unsupported map exists for every year.</p>
+            <p>Ancient borders often represented influence, settlement, or tribute rather than surveyed lines. Use this as an educational starting point, not a definitive source for legal, academic, or territorial claims.</p>
             <div className="confidence-legend">
               <span><i className="precision precision-1" /> Approximate</span><span><i className="precision precision-2" /> Moderate</span><span><i className="precision precision-3" /> Documented</span>
             </div>
-            <a href={index?.source || 'https://github.com/aourednik/historical-basemaps'} target="_blank" rel="noreferrer">View the source dataset</a>
+            <a href={index?.source || 'https://github.com/aourednik/historical-basemaps'} target="_blank" rel="noreferrer">Historical Basemaps source</a>
+            <a href="https://science.nasa.gov/earth/earth-observatory/history-of-the-blue-marble/" target="_blank" rel="noreferrer">NASA Blue Marble imagery</a>
           </section>
         </div>
       )}

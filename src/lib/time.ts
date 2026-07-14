@@ -26,6 +26,36 @@ export const findNearestSnapshotIndex = (snapshots: Snapshot[], targetYear: numb
   }, 0)
 }
 
+export const findSourceSnapshotIndex = (snapshots: Snapshot[], targetYear: number) => {
+  if (snapshots.length === 0) return -1
+  const firstAfter = snapshots.findIndex((snapshot) => snapshot.year > targetYear)
+  if (firstAfter === 0) return 0
+  return firstAfter === -1 ? snapshots.length - 1 : firstAfter - 1
+}
+
+export const buildTimelineYears = (snapshots: Snapshot[]) => {
+  if (snapshots.length === 0) return []
+  const years = new Set(snapshots.map((snapshot) => snapshot.year))
+  const start = snapshots[0].year
+  const end = snapshots.at(-1)?.year ?? 2010
+  const addRange = (from: number, to: number, step: number) => {
+    for (let year = Math.ceil(from / step) * step; year <= to; year += step) {
+      if (year !== 0) years.add(year)
+    }
+  }
+  addRange(start, Math.min(-10000, end), 5000)
+  addRange(Math.max(start, -10000), Math.min(-3000, end), 500)
+  addRange(Math.max(start, -3000), Math.min(-1000, end), 100)
+  addRange(Math.max(start, -1000), end, 10)
+  return [...years].filter((year) => year >= start && year <= end).sort((left, right) => left - right)
+}
+
+export const findNearestYearIndex = (years: number[], targetYear: number) => {
+  if (years.length === 0) return -1
+  return years.reduce((nearest, year, index) =>
+    Math.abs(year - targetYear) < Math.abs(years[nearest] - targetYear) ? index : nearest, 0)
+}
+
 export const getEraLabel = (year: number) => {
   if (year < -3000) return 'Early civilizations'
   if (year < -500) return 'Ancient world'

@@ -24,8 +24,20 @@ export interface Snapshot {
   features: number
 }
 
+export interface HistoricalEntityIndex {
+  key: string
+  name: string
+  aliases: string[]
+  years: number[]
+  firstYear: number
+  lastYear: number
+  peakYear: number
+  maxArea: number
+}
+
 export interface DatasetIndex {
   maps: Snapshot[]
+  entities: HistoricalEntityIndex[]
   updatedAt: string
   source: string
   sourceCommit: string | null
@@ -40,6 +52,30 @@ export interface EntitySummary {
   control: string | null
   precision: BorderPrecision
   features: HistoricalFeature[]
+}
+
+export interface CivilizationProfile {
+  names: string[]
+  displayName: string
+  period: string
+  capital?: string
+  overview: string
+  legacy: string
+  facts: string[]
+  importance: number
+  color: string
+  source: { title: string; url: string }
+}
+
+export interface HistoricalEvent {
+  id: string
+  title: string
+  year: number
+  lat: number
+  lng: number
+  description: string
+  entity?: string
+  source: { title: string; url: string }
 }
 
 export interface LabelDatum {
