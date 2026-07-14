@@ -1,0 +1,326 @@
+{
+  "maps": [
+    {
+      "year": -123000,
+      "filename": "maps/-123000.geojson",
+      "entities": 3,
+      "features": 4
+    },
+    {
+      "year": -10000,
+      "filename": "maps/-10000.geojson",
+      "entities": 14,
+      "features": 16
+    },
+    {
+      "year": -8000,
+      "filename": "maps/-8000.geojson",
+      "entities": 15,
+      "features": 17
+    },
+    {
+      "year": -5000,
+      "filename": "maps/-5000.geojson",
+      "entities": 28,
+      "features": 28
+    },
+    {
+      "year": -4000,
+      "filename": "maps/-4000.geojson",
+      "entities": 23,
+      "features": 23
+    },
+    {
+      "year": -3000,
+      "filename": "maps/-3000.geojson",
+      "entities": 25,
+      "features": 25
+    },
+    {
+      "year": -2000,
+      "filename": "maps/-2000.geojson",
+      "entities": 45,
+      "features": 45
+    },
+    {
+      "year": -1500,
+      "filename": "maps/-1500.geojson",
+      "entities": 68,
+      "features": 69
+    },
+    {
+      "year": -1000,
+      "filename": "maps/-1000.geojson",
+      "entities": 69,
+      "features": 70
+    },
+    {
+      "year": -700,
+      "filename": "maps/-700.geojson",
+      "entities": 73,
+      "features": 80
+    },
+    {
+      "year": -500,
+      "filename": "maps/-500.geojson",
+      "entities": 74,
+      "features": 77
+    },
+    {
+      "year": -400,
+      "filename": "maps/-400.geojson",
+      "entities": 76,
+      "features": 81
+    },
+    {
+      "year": -323,
+      "filename": "maps/-323.geojson",
+      "entities": 68,
+      "features": 75
+    },
+    {
+      "year": -300,
+      "filename": "maps/-300.geojson",
+      "entities": 73,
+      "features": 79
+    },
+    {
+      "year": -200,
+      "filename": "maps/-200.geojson",
+      "entities": 86,
+      "features": 86
+    },
+    {
+      "year": -100,
+      "filename": "maps/-100.geojson",
+      "entities": 84,
+      "features": 85
+    },
+    {
+      "year": -1,
+      "filename": "maps/-1.geojson",
+      "entities": 79,
+      "features": 80
+    },
+    {
+      "year": 100,
+      "filename": "maps/100.geojson",
+      "entities": 83,
+      "features": 85
+    },
+    {
+      "year": 200,
+      "filename": "maps/200.geojson",
+      "entities": 69,
+      "features": 70
+    },
+    {
+      "year": 300,
+      "filename": "maps/300.geojson",
+      "entities": 71,
+      "features": 71
+    },
+    {
+      "year": 400,
+      "filename": "maps/400.geojson",
+      "entities": 79,
+      "features": 80
+    },
+    {
+      "year": 500,
+      "filename": "maps/500.geojson",
+      "entities": 87,
+      "features": 92
+    },
+    {
+      "year": 600,
+      "filename": "maps/600.geojson",
+      "entities": 83,
+      "features": 88
+    },
+    {
+      "year": 700,
+      "filename": "maps/700.geojson",
+      "entities": 126,
+      "features": 132
+    },
+    {
+      "year": 800,
+      "filename": "maps/800.geojson",
+      "entities": 117,
+      "features": 122
+    },
+    {
+      "year": 900,
+      "filename": "maps/900.geojson",
+      "entities": 135,
+      "features": 138
+    },
+    {
+      "year": 1000,
+      "filename": "maps/1000.geojson",
+      "entities": 129,
+      "features": 132
+    },
+    {
+      "year": 1100,
+      "filename": "maps/1100.geojson",
+      "entities": 139,
+      "features": 150
+    },
+    {
+      "year": 1200,
+      "filename": "maps/1200.geojson",
+      "entities": 129,
+      "features": 136
+    },
+    {
+      "year": 1279,
+      "filename": "maps/1279.geojson",
+      "entities": 113,
+      "features": 116
+    },
+    {
+      "year": 1300,
+      "filename": "maps/1300.geojson",
+      "entities": 113,
+      "features": 115
+    },
+    {
+      "year": 1400,
+      "filename": "maps/1400.geojson",
+      "entities": 115,
+      "features": 122
+    },
+    {
+      "year": 1492,
+      "filename": "maps/1492.geojson",
+      "entities": 1307,
+      "features": 1317
+    },
+    {
+      "year": 1500,
+      "filename": "maps/1500.geojson",
+      "entities": 139,
+      "features": 143
+    },
+    {
+      "year": 1530,
+      "filename": "maps/1530.geojson",
+      "entities": 269,
+      "features": 278
+    },
+    {
+      "year": 1600,
+      "filename": "maps/1600.geojson",
+      "entities": 638,
+      "features": 661
+    },
+    {
+      "year": 1650,
+      "filename": "maps/1650.geojson",
+      "entities": 593,
+      "features": 598
+    },
+    {
+      "year": 1700,
+      "filename": "maps/1700.geojson",
+      "entities": 584,
+      "features": 591
+    },
+    {
+      "year": 1715,
+      "filename": "maps/1715.geojson",
+      "entities": 600,
+      "features": 606
+    },
+    {
+      "year": 1783,
+      "filename": "maps/1783.geojson",
+      "entities": 549,
+      "features": 564
+    },
+    {
+      "year": 1800,
+      "filename": "maps/1800.geojson",
+      "entities": 546,
+      "features": 558
+    },
+    {
+      "year": 1815,
+      "filename": "maps/1815.geojson",
+      "entities": 312,
+      "features": 327
+    },
+    {
+      "year": 1880,
+      "filename": "maps/1880.geojson",
+      "entities": 169,
+      "features": 173
+    },
+    {
+      "year": 1900,
+      "filename": "maps/1900.geojson",
+      "entities": 165,
+      "features": 222
+    },
+    {
+      "year": 1914,
+      "filename": "maps/1914.geojson",
+      "entities": 142,
+      "features": 144
+    },
+    {
+      "year": 1920,
+      "filename": "maps/1920.geojson",
+      "entities": 163,
+      "features": 165
+    },
+    {
+      "year": 1930,
+      "filename": "maps/1930.geojson",
+      "entities": 161,
+      "features": 163
+    },
+    {
+      "year": 1938,
+      "filename": "maps/1938.geojson",
+      "entities": 171,
+      "features": 175
+    },
+    {
+      "year": 1945,
+      "filename": "maps/1945.geojson",
+      "entities": 183,
+      "features": 185
+    },
+    {
+      "year": 1960,
+      "filename": "maps/1960.geojson",
+      "entities": 157,
+      "features": 160
+    },
+    {
+      "year": 1994,
+      "filename": "maps/1994.geojson",
+      "entities": 193,
+      "features": 197
+    },
+    {
+      "year": 2000,
+      "filename": "maps/2000.geojson",
+      "entities": 193,
+      "features": 198
+    },
+    {
+      "year": 2010,
+      "filename": "maps/2010.geojson",
+      "entities": 193,
+      "features": 198
+    }
+  ],
+  "updatedAt": "2026-07-14T10:55:04.005Z",
+  "source": "https://github.com/aourednik/historical-basemaps",
+  "sourceCommit": "62d8f1a03a71f2d3ff17f2d166f7553f256bce68",
+  "license": "GPL-3.0"
+}
