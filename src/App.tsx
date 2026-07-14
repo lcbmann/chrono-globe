@@ -4,7 +4,7 @@ import { GlobeView } from './components/GlobeView'
 import { TerritoryPanel } from './components/TerritoryPanel'
 import { Timeline } from './components/Timeline'
 import { eventsNearYear } from './data/events'
-import { useDatasetIndex, useHistoricalMap } from './hooks/useHistoricalData'
+import { prefetchHistoricalMap, useDatasetIndex, useHistoricalMap } from './hooks/useHistoricalData'
 import { useSoundscape } from './hooks/useSoundscape'
 import { entityKey, groupEntities } from './lib/entities'
 import { buildTimelineYears, findNearestYearIndex, findSourceSnapshotIndex, formatYear, getEraLabel } from './lib/time'
@@ -30,9 +30,9 @@ function App() {
   const snapshot = snapshots[sourceIndex] || null
   const { map, loadedFilename, loading, error: mapError } = useHistoricalMap(snapshot)
   const features = useMemo<HistoricalFeature[]>(() => {
-    if (!map || loadedFilename !== snapshot?.filename) return []
-    return map.features.filter((item): item is HistoricalFeature => Boolean(item.properties?.NAME))
-  }, [loadedFilename, map, snapshot?.filename])
+    if (!map) return []
+    return map.features.filter((item): item is HistoricalFeature => Boolean(item.properties?.NAME && item.properties.NAME !== '?'))
+  }, [map])
   const entities = useMemo(() => groupEntities(features), [features])
   const nearbyEvents = useMemo(() => selectedYear === undefined ? [] : eventsNearYear(selectedYear), [selectedYear])
 
@@ -54,6 +54,11 @@ function App() {
     }, 950)
     return () => window.clearInterval(timer)
   }, [playing, timelineYears.length])
+
+  useEffect(() => {
+    if (!playing || sourceIndex < 0) return
+    void prefetchHistoricalMap(snapshots[sourceIndex + 1])
+  }, [playing, snapshots, sourceIndex])
 
   useEffect(() => {
     const handleKeydown = (event: KeyboardEvent) => {
@@ -94,7 +99,7 @@ function App() {
           <div><strong>Chrono Globe</strong><span>The world, through time</span></div>
         </div>
         <div className="header-actions">
-          {index && <span className="dataset-status" title={`${index.maps.length} locally stored historical reconstructions`}><Database size={14} /> {index.maps.length} source maps</span>}
+          {index && <span className="dataset-status" title={`${index.maps.length} moments in world history`}><Database size={14} /> {index.maps.length} mapped moments</span>}
           <div className="segmented-control" aria-label="Globe appearance">
             <button type="button" className={globeMode === 'atlas' ? 'active' : ''} onClick={() => setGlobeMode('atlas')} title="Atlas globe"><Map size={14} /> Atlas</button>
             <button type="button" className={globeMode === 'earth' ? 'active' : ''} onClick={() => setGlobeMode('earth')} title="Realistic Earth"><Globe2 size={14} /> Earth</button>
@@ -109,9 +114,11 @@ function App() {
       <main className="workspace">
         <section className="globe-column">
           <div className="time-readout" aria-live="polite">
-            <span>{selectedYear !== undefined ? getEraLabel(selectedYear) : 'Loading atlas'}</span>
+            <span>{selectedYear !== undefined ? getEraLabel(selectedYear) : 'Opening the globe'}</span>
             <h1>{selectedYear !== undefined ? formatYear(selectedYear) : '—'}</h1>
-            {snapshot && <small>{snapshot.year === selectedYear ? 'Source reconstruction' : `Borders from ${formatYear(snapshot.year)} source map`}</small>}
+            {snapshot && (loadedFilename !== snapshot.filename
+              ? <small>Traveling to {formatYear(selectedYear)}</small>
+              : <small>{snapshot.year === selectedYear ? 'A mapped moment in history' : `The world around ${formatYear(snapshot.year)}`}</small>)}
           </div>
           <GlobeView
             features={features}
@@ -124,10 +131,10 @@ function App() {
             onEventSelect={(event) => { setSelectedEvent(event); setSelectedKey(event.entity || null); chime(659.25) }}
             onClearSelection={() => { setSelectedKey(null); setSelectedEvent(null) }}
           />
-          {(loading || (!index && !visibleError)) && <div className="loading-pill"><LoaderCircle size={15} className="spin" /> Loading reconstruction</div>}
+          {(loading || (!index && !visibleError)) && <div className="loading-pill"><LoaderCircle size={15} className="spin" /> Traveling through time</div>}
           {visibleError && (
             <div className="error-card">
-              <strong>The atlas data could not be loaded.</strong><span>{visibleError}</span>
+              <strong>The historical map could not be loaded.</strong><span>{visibleError}</span>
               <button type="button" onClick={() => window.location.reload()}>Try again</button>
             </div>
           )}
@@ -161,14 +168,14 @@ function App() {
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setAboutOpen(false)}>
           <section className="about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title" onMouseDown={(event) => event.stopPropagation()}>
             <button type="button" className="modal-close" onClick={() => setAboutOpen(false)} aria-label="Close about dialog">×</button>
-            <div className="eyebrow">About this atlas</div>
+            <div className="eyebrow">About Chrono Globe</div>
             <h2 id="about-title">History has fuzzy edges.</h2>
-            <p>The cursor moves in decades through the historical era, while borders remain on the latest available source reconstruction. That makes change legible without pretending an unsupported map exists for every year.</p>
+            <p>The timeline moves in decades through recorded history. Between mapped moments, borders remain steady, then dissolve smoothly into the next view as territories grow, divide, and disappear.</p>
             <p>Ancient borders often represented influence, settlement, or tribute rather than surveyed lines. Use this as an educational starting point, not a definitive source for legal, academic, or territorial claims.</p>
             <div className="confidence-legend">
               <span><i className="precision precision-1" /> Approximate</span><span><i className="precision precision-2" /> Moderate</span><span><i className="precision precision-3" /> Documented</span>
             </div>
-            <a href={index?.source || 'https://github.com/aourednik/historical-basemaps'} target="_blank" rel="noreferrer">Historical Basemaps source</a>
+            <a href={index?.source || 'https://github.com/aourednik/historical-basemaps'} target="_blank" rel="noreferrer">Map data &amp; credits</a>
             <a href="https://science.nasa.gov/earth/earth-observatory/history-of-the-blue-marble/" target="_blank" rel="noreferrer">NASA Blue Marble imagery</a>
           </section>
         </div>

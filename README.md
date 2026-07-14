@@ -13,7 +13,7 @@ This is a ground-up successor to a 2024 prototype that painted each historical s
 - Includes curated educational profiles, contextual facts, reading links, and geolocated historical-event markers.
 - Switches between a stylized atlas and a realistic NASA Blue Marble Earth.
 - Uses historically associated colors and stronger visual prominence for major polities.
-- Offers optional, user-activated ambient audio and interaction chimes.
+- Starts with subtle ambient audio after the visitor's first interaction, with a prominent mute control.
 - Carries boundary-confidence metadata into the interface.
 - Loads every map locally after the data sync; the published app does not depend on a live map API.
 - Uses a responsive, accessible React interface and a WebGL globe with a permanent vector land silhouette.
@@ -43,7 +43,7 @@ The repository includes the synced data used by the deployed app. Run `npm run d
 
 ## How the timeline works
 
-Historical borders are not available for every individual year. The slider moves in decade steps from 1000 BCE onward (with wider steps in deep history), but holds the latest available source map until the next reconstruction. This makes growth and change readable while avoiding invented annual borders. Exact source moments such as 323 BCE remain selectable, and the interface always identifies the source map currently supplying the borders.
+Historical borders are not available for every individual year. The slider moves in decade steps from 1000 BCE onward (with wider steps in deep history), but holds the latest available source map until the next reconstruction. When that map changes, the outgoing globe dissolves over the incoming one instead of blanking or rebuilding on screen. This makes growth and change readable while avoiding invented annual borders. Exact source moments such as 323 BCE remain selectable.
 
 At runtime the app:
 

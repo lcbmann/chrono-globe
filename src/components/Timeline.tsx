@@ -76,7 +76,7 @@ export function Timeline({
           />
           <div className="range-labels" aria-hidden="true">
             <span>{formatYear(years[0])}</span>
-            <span>Decade steps after 1000 BCE</span>
+            <span>Travel through history</span>
             <span>{formatYear(years.at(-1) || 2010)}</span>
           </div>
         </div>

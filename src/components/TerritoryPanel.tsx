@@ -69,19 +69,19 @@ export function TerritoryPanel({
                 </>
               ) : (
                 <>
-                  <p className="profile-overview">{selectedKey} appears in the source atlas from {historical ? `${formatYear(historical.firstYear)} to ${formatYear(historical.lastYear)}` : 'this reconstruction'}. This mapped shape is an approximate historical extent, not a modern surveyed border.</p>
-                  {selected && selected.features.length > 1 && <p className="detail-note">The source represents this polity through {selected.features.length} named regions, including {selected.features.slice(0, 4).map((feature) => feature.properties.NAME).join(', ')}.</p>}
-                  <p className="profile-legacy">A dedicated editorial profile has not yet been added. Use the source metadata below as a starting point and verify it with a specialist reference.</p>
+                  <p className="profile-overview">{selectedKey} appears on the globe from {historical ? `${formatYear(historical.firstYear)} to ${formatYear(historical.lastYear)}` : 'this moment in history'}. Its boundaries show an approximate historical extent rather than a modern surveyed border.</p>
+                  {selected && selected.features.length > 1 && <p className="detail-note">On the globe, this realm includes {selected.features.length} named regions, among them {selected.features.slice(0, 4).map((feature) => feature.properties.NAME).join(', ')}.</p>}
+                  <p className="profile-legacy">Historians are still studying how this society lived, governed, and interacted with its neighbors. Follow the reading links and compare several historical accounts as you explore.</p>
                 </>
               )}
               {selected && <div className="detail-row"><span>Boundary</span><strong>{confidence[selected.precision]}</strong></div>}
-              {historical && <div className="detail-row"><span>Atlas span</span><strong>{formatYear(historical.firstYear)}–{formatYear(historical.lastYear)}</strong></div>}
+              {historical && <div className="detail-row"><span>On the globe</span><strong>{formatYear(historical.firstYear)}–{formatYear(historical.lastYear)}</strong></div>}
             </>
           )}
         </article>
       ) : (
         <div className="panel-intro">
-          <div className="eyebrow">In {year === undefined ? 'this reconstruction' : formatYear(year)}</div>
+          <div className="eyebrow">In {year === undefined ? 'this moment in history' : formatYear(year)}</div>
           <h2>{entities.length.toLocaleString()} political and cultural entities</h2>
           <p>Select a region, search across all of history, or open a nearby event.</p>
         </div>

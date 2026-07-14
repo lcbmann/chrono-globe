@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 export const useSoundscape = () => {
-  const [enabled, setEnabled] = useState(false)
+  const [enabled, setEnabled] = useState(true)
   const contextRef = useRef<AudioContext | null>(null)
   const ambientRef = useRef<{ oscillators: OscillatorNode[]; gain: GainNode } | null>(null)
 
   const startAmbient = useCallback(() => {
+    if (ambientRef.current) return
     const AudioContextClass = window.AudioContext
     const context = contextRef.current || new AudioContextClass()
     contextRef.current = context
@@ -61,6 +62,17 @@ export const useSoundscape = () => {
     ambientRef.current?.oscillators.forEach((oscillator) => oscillator.stop())
     void contextRef.current?.close()
   }, [])
+
+  useEffect(() => {
+    if (!enabled || ambientRef.current) return
+    const begin = () => startAmbient()
+    window.addEventListener('pointerdown', begin, { once: true, capture: true })
+    window.addEventListener('keydown', begin, { once: true, capture: true })
+    return () => {
+      window.removeEventListener('pointerdown', begin, { capture: true })
+      window.removeEventListener('keydown', begin, { capture: true })
+    }
+  }, [enabled, startAmbient])
 
   return { soundEnabled: enabled, toggleSound: toggle, chime }
 }

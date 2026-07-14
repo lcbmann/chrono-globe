@@ -11,7 +11,22 @@ import type { HistoricalEntityIndex, HistoricalEvent, HistoricalFeature } from '
 
 interface LandProperties { __layer: 'land' }
 type LandFeature = Feature<Geometry, LandProperties>
-type RenderPolygon = HistoricalFeature | LandFeature
+
+interface RenderHistoricalFeature {
+  __layer: 'history'
+  feature: HistoricalFeature
+}
+
+interface HtmlLabel {
+  kind: 'entity' | 'event'
+  lat: number
+  lng: number
+  text: string
+  color: string
+  year?: number
+}
+
+type RenderPolygon = LandFeature | RenderHistoricalFeature
 
 interface GlobeViewProps {
   features: HistoricalFeature[]
@@ -31,19 +46,27 @@ const rgba = (hex: string, alpha: number) => {
 }
 
 const isLand = (polygon: RenderPolygon): polygon is LandFeature =>
-  Boolean(polygon.properties && '__layer' in polygon.properties && polygon.properties.__layer === 'land')
-
-const precisionLabel = (precision: number | null) => precision === 3 ? 'Documented boundary' : precision === 2 ? 'Moderate confidence' : 'Approximate extent'
+  'properties' in polygon && polygon.properties?.__layer === 'land'
+const historicalFeature = (polygon: RenderPolygon) => isLand(polygon) ? null : polygon.feature
+const precisionLabel = (precision: number | null) => precision === 3 ? 'Well documented' : precision === 2 ? 'Moderately certain' : 'Approximate extent'
 
 export function GlobeView({ features, history, selectedKey, events, selectedEvent, mode, onSelect, onEventSelect, onClearSelection }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
+  const stableFeaturesRef = useRef<HistoricalFeature[]>([])
   const [size, setSize] = useState({ width: 900, height: 700 })
   const [land, setLand] = useState<LandFeature[]>([])
   const [ready, setReady] = useState(false)
+  const [renderFeatures, setRenderFeatures] = useState<RenderHistoricalFeature[]>([])
+  const [transitionImage, setTransitionImage] = useState<string | null>(null)
+  const [transitionVisible, setTransitionVisible] = useState(false)
 
   const globeMaterial = useMemo(() => new MeshPhongMaterial(mode === 'earth' ? {
-    color: new Color('#ffffff'), shininess: 12, specular: new Color('#63838e'),
+    color: new Color('#ffffff'),
+    emissive: new Color('#56666c'),
+    emissiveIntensity: .18,
+    shininess: 5,
+    specular: new Color('#a7d3df'),
   } : {
     color: new Color('#071a23'), emissive: new Color('#031017'), emissiveIntensity: .38, shininess: 18, specular: new Color('#2b7888'),
   }), [mode])
@@ -67,6 +90,34 @@ export function GlobeView({ features, history, selectedKey, events, selectedEven
       }).catch(() => setLand([]))
   }, [])
 
+  useEffect(() => {
+    if (features === stableFeaturesRef.current) return
+    const previous = stableFeaturesRef.current
+    stableFeaturesRef.current = features
+    let outgoingImage: string | null = null
+    if (previous.length > 0 && features.length > 0) {
+      try {
+        outgoingImage = containerRef.current?.querySelector('canvas')?.toDataURL('image/png') || null
+      } catch {
+        outgoingImage = null
+      }
+    }
+    setRenderFeatures(features.map((feature) => ({ __layer: 'history', feature })))
+    if (!outgoingImage) return
+    setTransitionImage(outgoingImage)
+    setTransitionVisible(true)
+    let secondFrame = 0
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => setTransitionVisible(false))
+    })
+    const timer = window.setTimeout(() => setTransitionImage(null), 1500)
+    return () => {
+      cancelAnimationFrame(firstFrame)
+      cancelAnimationFrame(secondFrame)
+      window.clearTimeout(timer)
+    }
+  }, [features])
+
   const selectedFeatures = useMemo(() => features.filter((item) => entityKey(item) === selectedKey), [features, selectedKey])
   const selectedCenter = useMemo(() => {
     if (selectedFeatures.length === 0) return null
@@ -81,16 +132,40 @@ export function GlobeView({ features, history, selectedKey, events, selectedEven
     if (focus) globeRef.current?.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.65 }, 900)
   }, [ready, selectedCenter, selectedEvent])
 
-  const polygons = useMemo<RenderPolygon[]>(() => mode === 'atlas' ? [...land, ...features] : features, [features, land, mode])
+  useEffect(() => {
+    if (!ready) return
+    const globe = globeRef.current
+    if (!globe) return
+    const ambient = new AmbientLight(mode === 'earth' ? '#ffffff' : '#9bc1c8', mode === 'earth' ? 3.4 : 1.35)
+    const directional = new DirectionalLight(mode === 'earth' ? '#fff8e8' : '#fff0ce', mode === 'earth' ? 2.6 : 2.8)
+    directional.position.set(-180, 120, 160)
+    globe.lights([ambient, directional])
+  }, [mode, ready])
+
+  const polygons = useMemo<RenderPolygon[]>(() => mode === 'atlas' ? [...land, ...renderFeatures] : renderFeatures, [land, mode, renderFeatures])
   const historyByKey = useMemo(() => new Map(history.map((item) => [item.key, item])), [history])
   const prominence = (feature: HistoricalFeature) => {
     const key = entityKey(feature)
+    if (key === selectedKey) return 1
     const curated = getCivilizationProfile(key)?.importance
-    if (curated !== undefined) return curated
+    if (curated !== undefined) return .78 + curated * .22
     const area = historyByKey.get(key)?.maxArea || geoArea(feature)
     const cultural = /culture|hunter|burial|pottery|complex|tradition/i.test(key)
-    return Math.max(.22, Math.min(.72, .28 + Math.log1p(area * 10) * .16)) * (cultural ? .72 : 1)
+    const extentScore = Math.min(1, Math.sqrt(area / .12))
+    return Math.max(.08, (.1 + extentScore * .4) * (cultural ? .48 : 1))
   }
+  const htmlLabels = useMemo<HtmlLabel[]>(() => {
+    if (selectedEvent) return [{
+      kind: 'event', lat: selectedEvent.lat, lng: selectedEvent.lng, text: selectedEvent.title,
+      color: '#ffd27b', year: selectedEvent.year,
+    }]
+    if (!selectedKey || !selectedCenter) return []
+    return [{
+      kind: 'entity', ...selectedCenter,
+      text: getCivilizationProfile(selectedKey)?.displayName || selectedKey,
+      color: entityColor(selectedKey),
+    }]
+  }, [selectedCenter, selectedEvent, selectedKey])
 
   const handleReady = () => {
     setReady(true)
@@ -102,26 +177,30 @@ export function GlobeView({ features, history, selectedKey, events, selectedEven
     controls.enableDamping = true
     controls.dampingFactor = .08
     controls.rotateSpeed = .55
-    globe.lights([new AmbientLight('#b5cfd4', 1.45), new DirectionalLight('#fff0ce', mode === 'earth' ? 2.1 : 2.8)])
-    const directional = globe.lights()[1] as DirectionalLight
-    directional.position.set(-180, 120, 160)
   }
 
   const polygonLabel = (object: object) => {
     const polygon = object as RenderPolygon
-    if (isLand(polygon)) return ''
-    const key = entityKey(polygon)
-    const region = polygon.properties.NAME || 'Unnamed territory'
+    const feature = historicalFeature(polygon)
+    if (!feature) return ''
+    const key = entityKey(feature)
+    const region = feature.properties.NAME || 'Unnamed territory'
     const regional = region !== key ? `<div>Region: ${escapeHtml(region)}</div>` : ''
-    return `<div class="globe-tooltip"><strong>${escapeHtml(key)}</strong>${regional}<span>${precisionLabel(polygon.properties.BORDERPRECISION)}</span></div>`
+    return `<div class="globe-tooltip"><strong>${escapeHtml(key)}</strong>${regional}<span>${precisionLabel(feature.properties.BORDERPRECISION)}</span></div>`
   }
 
-  const htmlLabel = () => {
-    if (!selectedKey || !selectedCenter) return document.createElement('span')
+  const htmlElement = (object: object) => {
+    const label = object as HtmlLabel
     const element = document.createElement('div')
-    element.className = 'globe-entity-label'
-    element.textContent = getCivilizationProfile(selectedKey)?.displayName || selectedKey
-    element.style.setProperty('--entity-color', entityColor(selectedKey))
+    element.className = label.kind === 'event' ? 'globe-event-label' : 'globe-entity-label'
+    element.style.setProperty('--entity-color', label.color)
+    if (label.kind === 'event') {
+      const marker = document.createElement('span')
+      marker.textContent = 'Historical moment'
+      const title = document.createElement('strong')
+      title.textContent = label.text
+      element.append(marker, title)
+    } else element.textContent = label.text
     return element
   }
 
@@ -138,58 +217,74 @@ export function GlobeView({ features, history, selectedKey, events, selectedEven
         bumpImageUrl={mode === 'earth' ? `${import.meta.env.BASE_URL}textures/earth-topology.png` : undefined}
         showGraticules={mode === 'atlas'}
         showAtmosphere
-        atmosphereColor={mode === 'earth' ? '#87c8ed' : '#65bfd0'}
+        atmosphereColor={mode === 'earth' ? '#a9ddfa' : '#65bfd0'}
         atmosphereAltitude={.15}
         polygonsData={polygons}
-        polygonGeoJsonGeometry={(object) => (object as RenderPolygon).geometry as never}
+        polygonGeoJsonGeometry={(object) => (historicalFeature(object as RenderPolygon)?.geometry || (object as LandFeature).geometry) as never}
         polygonAltitude={(object) => {
           const polygon = object as RenderPolygon
-          if (isLand(polygon)) return .004
-          const importance = prominence(polygon)
-          return entityKey(polygon) === selectedKey ? .024 : .008 + importance * .006
+          const feature = historicalFeature(polygon)
+          if (!feature) return .004
+          const importance = prominence(feature)
+          return entityKey(feature) === selectedKey ? .035 : .004 + importance * importance * .019
         }}
         polygonCapColor={(object) => {
           const polygon = object as RenderPolygon
-          if (isLand(polygon)) return 'rgba(43, 63, 54, 0.96)'
-          const selected = entityKey(polygon) === selectedKey
-          const importance = prominence(polygon)
-          const alpha = selected ? .96 : mode === 'earth' ? .28 + importance * .3 : .48 + importance * .38
-          return rgba(entityColor(entityKey(polygon)), alpha)
+          const feature = historicalFeature(polygon)
+          if (!feature) return 'rgba(43, 63, 54, 0.96)'
+          const importance = prominence(feature)
+          const selected = entityKey(feature) === selectedKey
+          const baseAlpha = selected ? .98 : mode === 'earth' ? .1 + importance * .52 : .18 + importance * .76
+          return rgba(entityColor(entityKey(feature)), baseAlpha)
         }}
-        polygonSideColor={(object) => isLand(object as RenderPolygon) ? 'rgba(17, 31, 30, 0.8)' : rgba(entityColor(entityKey(object as HistoricalFeature)), .34)}
+        polygonSideColor={(object) => {
+          const polygon = object as RenderPolygon
+          const feature = historicalFeature(polygon)
+          if (!feature) return 'rgba(17, 31, 30, 0.8)'
+          return rgba(entityColor(entityKey(feature)), .08 + prominence(feature) * .42)
+        }}
         polygonStrokeColor={(object) => {
           const polygon = object as RenderPolygon
-          if (isLand(polygon)) return 'rgba(130, 159, 140, 0.2)'
-          if (entityKey(polygon) === selectedKey) return '#fff8df'
-          return `rgba(255, 247, 220, ${.14 + (polygon.properties.BORDERPRECISION || 1) * .1})`
+          const feature = historicalFeature(polygon)
+          if (!feature) return 'rgba(130, 159, 140, 0.2)'
+          const importance = prominence(feature)
+          const alpha = importance > .78 ? .9 : .08 + importance * .34
+          return importance > .78 ? `rgba(255, 239, 196, ${alpha})` : `rgba(255, 247, 220, ${alpha})`
         }}
         polygonCapCurvatureResolution={3}
-        polygonsTransitionDuration={900}
+        polygonsTransitionDuration={0}
         polygonLabel={polygonLabel}
-        onPolygonClick={(object) => isLand(object as RenderPolygon) ? onClearSelection() : onSelect(object as HistoricalFeature)}
+        onPolygonClick={(object) => {
+          const feature = historicalFeature(object as RenderPolygon)
+          if (feature) onSelect(feature)
+          else onClearSelection()
+        }}
         pointsData={events}
         pointLat="lat"
         pointLng="lng"
-        pointColor={() => '#ffd27b'}
-        pointAltitude={(object) => (object as HistoricalEvent).id === selectedEvent?.id ? .075 : .045}
-        pointRadius={(object) => (object as HistoricalEvent).id === selectedEvent?.id ? .42 : .29}
-        pointLabel={(object) => `<div class="globe-tooltip event-tooltip"><strong>${escapeHtml((object as HistoricalEvent).title)}</strong><span>${Math.abs((object as HistoricalEvent).year)} ${(object as HistoricalEvent).year < 0 ? 'BCE' : 'CE'} · historical event</span></div>`}
+        pointColor={(object) => (object as HistoricalEvent).id === selectedEvent?.id ? '#fff4ca' : '#ffd27b'}
+        pointAltitude={(object) => (object as HistoricalEvent).id === selectedEvent?.id ? .09 : .045}
+        pointRadius={(object) => (object as HistoricalEvent).id === selectedEvent?.id ? .55 : .29}
+        pointLabel={(object) => `<div class="globe-tooltip event-tooltip"><strong>${escapeHtml((object as HistoricalEvent).title)}</strong><span>${Math.abs((object as HistoricalEvent).year)} ${(object as HistoricalEvent).year < 0 ? 'BCE' : 'CE'} · historical moment</span></div>`}
         onPointClick={(object) => onEventSelect(object as HistoricalEvent)}
         ringsData={events}
         ringLat="lat"
         ringLng="lng"
-        ringColor={() => ['rgba(255,210,123,.75)', 'rgba(255,210,123,0)']}
-        ringMaxRadius={2.2}
+        ringColor={(object: object) => (object as HistoricalEvent).id === selectedEvent?.id
+          ? ['rgba(255,244,202,1)', 'rgba(255,210,123,0)']
+          : ['rgba(255,210,123,.65)', 'rgba(255,210,123,0)']}
+        ringMaxRadius={(object: object) => (object as HistoricalEvent).id === selectedEvent?.id ? 3.2 : 2.2}
         ringPropagationSpeed={.7}
         ringRepeatPeriod={1800}
-        htmlElementsData={selectedCenter ? [{ ...selectedCenter }] : []}
+        htmlElementsData={htmlLabels}
         htmlLat="lat"
         htmlLng="lng"
-        htmlAltitude={.04}
-        htmlElement={htmlLabel}
+        htmlAltitude={(object) => (object as HtmlLabel).kind === 'event' ? .105 : .04}
+        htmlElement={htmlElement}
         onGlobeClick={onClearSelection}
         onGlobeReady={handleReady}
       />
+      {transitionImage && <img className={`globe-transition-snapshot ${transitionVisible ? 'visible' : ''}`} src={transitionImage} alt="" aria-hidden="true" />}
       <div className="drag-hint" aria-hidden="true"><span className="mouse-glyph" /> Drag to rotate · Scroll to zoom</div>
     </div>
   )
