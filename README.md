@@ -8,9 +8,17 @@ This is a ground-up successor to a 2024 prototype that painted each historical s
 
 - Shows 53 worldwide source reconstructions from 123,000 BCE to 2010 CE on a readable, decade-scale historical cursor.
 - Starts at 323 BCE, preserving the original project's focus on Macedon and Alexander's empire.
-- Supports drag, zoom, click-to-inspect, all-history civilization search, keyboard navigation, direct year entry, and stable timeline playback.
+- Supports drag, zoom, click-to-inspect, alias-aware all-history civilization search, keyboard navigation, direct year entry, and stable timeline playback.
 - Displays all named territories in a reconstruction simultaneously.
-- Includes curated educational profiles, contextual facts, reading links, and geolocated historical-event markers.
+- Includes broad, globally distributed educational profiles, contextual facts, reading links, and geolocated historical-event markers.
+- Adds curated public-domain and Creative Commons imagery to major profiles, plus date-specific flags, standards, and ensigns where the historical evidence supports them.
+- Compares two arbitrary timeline years side by side and summarizes appeared, disappeared, expanded, contracted, and changed-control entities.
+- Provides guided stories that move the date, camera, highlighted civilization, and historical moment together.
+- Adds time-aware capitals, cities, archaeological sites, trade networks, migrations, and expedition routes as optional layers.
+- Gives each indexed entity a mapped chronology with first, largest, and last appearances plus focused playback.
+- Preserves the selected year, entity, event, globe appearance, comparison, layers, story step, and camera in a shareable URL.
+- Offers region, era, entity-type, and curated-profile discovery filters.
+- Keeps creator, source-file, and license attribution beside every reused image; missing remote previews fall back to the source page without breaking the explorer.
 - Switches between a stylized atlas and a realistic NASA Blue Marble Earth.
 - Uses historically associated colors and stronger visual prominence for major polities.
 - Starts with subtle ambient audio after the visitor's first interaction, with a prominent mute control.
@@ -36,24 +44,33 @@ The repository includes the synced data used by the deployed app. Run `npm run d
 | --- | --- |
 | `npm run dev` | Start the development server |
 | `npm run data:sync` | Download, normalize, and locally vendor every historical snapshot |
+| `npm run data:validate` | Validate map files, index counts, aliases, event/story references, layer records, and source URLs |
 | `npm run test` | Run unit tests |
 | `npm run lint` | Run Oxc lint checks |
 | `npm run build` | Type-check and build the production app |
-| `npm run check` | Run lint, tests, and the production build |
+| `npm run check` | Validate data, lint, test, and create the production build |
 
 ## How the timeline works
 
-Historical borders are not available for every individual year. The slider moves in decade steps from 1000 BCE onward (with wider steps in deep history), but holds the latest available source map until the next reconstruction. When that map changes, the outgoing globe dissolves over the incoming one instead of blanking or rebuilding on screen. This makes growth and change readable while avoiding invented annual borders. Exact source moments such as 323 BCE remain selectable.
+Historical borders are not available for every individual year. The slider moves in decade steps from 1000 BCE onward (with wider steps in deep history) and also includes exact source dates and featured historical moments. Between two source reconstructions, Chrono Globe progressively blends the outgoing and incoming extents. This makes expansion, contraction, division, and disappearance easier to follow, but the blended shapes are explicitly presented as a visual transition rather than an invented annual border record.
 
 At runtime the app:
 
 1. Loads the lightweight local snapshot index.
-2. Resolves the selected historical year to the latest available source map and fetches that GeoJSON file only when it changes.
+2. Resolves the selected historical year to the surrounding source maps, fetching and caching the two GeoJSON files needed for the transition.
 3. Groups map regions by their `SUBJECTO`/`PARTOF` political identity.
 4. assigns a stable or editorially chosen color to that identity across time;
 5. projects the vector polygons directly onto the globe.
 
 The generated index also records each entity's first, last, and largest mapped appearance. This powers global search: selecting a civilization outside the current reconstruction jumps to its strongest available map and centers the globe.
+
+Change mode compares the spherical area grouped under each stable entity key. A change is categorized as an appearance, disappearance, material expansion or contraction, or a recorded control change. It is a map-to-map comparison—not a claim about population, power, or every event between the two source dates.
+
+## Guided stories, layers, and links
+
+Guided stories live in `src/data/stories.ts`; their event references are checked automatically. Time-aware place and route records live in `src/data/layers.ts`. Routes deliberately connect representative waypoints and should not be treated as precise tracks or exhaustive networks.
+
+The URL is part of the user interface. Opening a shared link reconstructs the selected date, entity or event, comparison year, active layers, story step, globe mode, and camera. No server-side account or saved state is required.
 
 See [docs/DATA.md](docs/DATA.md) for the schema and update workflow.
 
@@ -77,6 +94,7 @@ The application code is GPL-3.0-or-later so the historical data and the software
 
 - React + TypeScript + Vite
 - `react-globe.gl` / Three.js for rendering and interaction
+- A code-split WebGL renderer so the interface shell can load independently of Three.js
 - GeoJSON for historical territories
 - TopoJSON for the permanent land silhouette
 - Vitest for data-model utilities
@@ -86,4 +104,4 @@ No database or backend is required. A static host is enough.
 
 ## Contributing
 
-Application fixes and visual improvements are welcome here. Historical boundary corrections should normally be proposed to Historical Basemaps first, then imported with `npm run data:sync`. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Application fixes and visual improvements are welcome here. Historical boundary corrections should normally be proposed to Historical Basemaps first, then imported with `npm run data:sync`. New dates require a sourced GeoJSON reconstruction; Chrono Globe does not synthesize annual borders or population estimates from neighboring maps. See [CONTRIBUTING.md](CONTRIBUTING.md).

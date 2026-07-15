@@ -18,7 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "data:sync": "node scripts/sync-historical-data.mjs",
-    "check": "npm run lint && npm run test && npm run build"
+    "data:validate": "node scripts/validate-historical-data.mjs",
+    "check": "npm run data:validate && npm run lint && npm run test && npm run build"
   },
   "dependencies": {
     "d3-geo": "^3.1.1",

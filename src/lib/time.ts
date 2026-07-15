@@ -33,9 +33,9 @@ export const findSourceSnapshotIndex = (snapshots: Snapshot[], targetYear: numbe
   return firstAfter === -1 ? snapshots.length - 1 : firstAfter - 1
 }
 
-export const buildTimelineYears = (snapshots: Snapshot[]) => {
+export const buildTimelineYears = (snapshots: Snapshot[], featuredYears: number[] = []) => {
   if (snapshots.length === 0) return []
-  const years = new Set(snapshots.map((snapshot) => snapshot.year))
+  const years = new Set([...snapshots.map((snapshot) => snapshot.year), ...featuredYears])
   const start = snapshots[0].year
   const end = snapshots.at(-1)?.year ?? 2010
   const addRange = (from: number, to: number, step: number) => {
@@ -48,6 +48,20 @@ export const buildTimelineYears = (snapshots: Snapshot[]) => {
   addRange(Math.max(start, -3000), Math.min(-1000, end), 100)
   addRange(Math.max(start, -1000), end, 10)
   return [...years].filter((year) => year >= start && year <= end).sort((left, right) => left - right)
+}
+
+export const getSnapshotTransition = (snapshots: Snapshot[], targetYear: number) => {
+  const currentIndex = findSourceSnapshotIndex(snapshots, targetYear)
+  if (currentIndex < 0) return { currentIndex: -1, nextIndex: -1, progress: 0 }
+
+  const nextIndex = Math.min(currentIndex + 1, snapshots.length - 1)
+  const current = snapshots[currentIndex]
+  const next = snapshots[nextIndex]
+  if (currentIndex === nextIndex || next.year === current.year) return { currentIndex, nextIndex, progress: 0 }
+
+  const linearProgress = Math.max(0, Math.min(1, (targetYear - current.year) / (next.year - current.year)))
+  const progress = linearProgress * linearProgress * (3 - 2 * linearProgress)
+  return { currentIndex, nextIndex, progress }
 }
 
 export const findNearestYearIndex = (years: number[], targetYear: number) => {
