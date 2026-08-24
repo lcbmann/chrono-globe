@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+const soundPreferenceKey = 'chrono-globe:sound'
+
 export const useSoundscape = () => {
-  const [enabled, setEnabled] = useState(true)
+  const [enabled, setEnabled] = useState(() => {
+    try {
+      return window.localStorage.getItem(soundPreferenceKey) !== 'muted'
+    } catch {
+      return true
+    }
+  })
   const contextRef = useRef<AudioContext | null>(null)
   const ambientRef = useRef<{ oscillators: OscillatorNode[]; gain: GainNode } | null>(null)
 
@@ -40,7 +48,13 @@ export const useSoundscape = () => {
     setEnabled((current) => {
       if (current) stopAmbient()
       else startAmbient()
-      return !current
+      const next = !current
+      try {
+        window.localStorage.setItem(soundPreferenceKey, next ? 'enabled' : 'muted')
+      } catch {
+        // Sound remains controllable when storage is unavailable.
+      }
+      return next
     })
   }, [startAmbient, stopAmbient])
 

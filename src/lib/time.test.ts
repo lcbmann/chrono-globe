@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTimelineYears, findNearestSnapshotIndex, findSourceSnapshotIndex, formatYear, getSnapshotTransition, parseYear } from './time'
+import { buildPlaybackYears, buildTimelineYears, findNearestSnapshotIndex, findSourceSnapshotIndex, formatYear, getSnapshotTransition, parseYear } from './time'
 
 const snapshots = [
   { year: -500, filename: '', entities: 1, features: 1 },
@@ -33,7 +33,11 @@ describe('historical time helpers', () => {
     expect(findSourceSnapshotIndex(snapshots, -250)).toBe(1)
   })
 
-  it('smoothly blends between the surrounding source maps', () => {
+  it('keeps playback to meaningful sourced and featured years', () => {
+    expect(buildPlaybackYears(snapshots, [-331, -331, 500])).toEqual([-500, -331, -323, 100])
+  })
+
+  it('locates progress between the surrounding source maps', () => {
     expect(getSnapshotTransition(snapshots, -500)).toEqual({ currentIndex: 0, nextIndex: 1, progress: 0 })
     expect(getSnapshotTransition(snapshots, -411).progress).toBeCloseTo(.5, 1)
     expect(getSnapshotTransition(snapshots, 100)).toEqual({ currentIndex: 2, nextIndex: 2, progress: 0 })

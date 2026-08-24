@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lcbmann.github.io/chrono-globe/sitemap.xml

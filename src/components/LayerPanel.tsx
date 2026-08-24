@@ -1,4 +1,5 @@
 import { Layers3, X } from 'lucide-react'
+import { useDialogFocus } from '../hooks/useDialogFocus'
 import type { LayerVisibility } from '../types'
 
 interface LayerPanelProps {
@@ -19,15 +20,18 @@ const options: Array<{ key: keyof LayerVisibility; title: string; description: s
 ]
 
 export function LayerPanel({ open, layers, onChange, onClose }: LayerPanelProps) {
+  const dialogRef = useDialogFocus<HTMLElement>(open, onClose)
+  const activeLayerCount = options.filter((option) => layers[option.key]).length
   if (!open) return null
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="tool-modal layer-modal" role="dialog" aria-modal="true" aria-labelledby="layers-title" onMouseDown={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="tool-modal layer-modal" role="dialog" aria-modal="true" aria-labelledby="layers-title" aria-describedby="layers-description layers-status" onMouseDown={(event) => event.stopPropagation()}>
         <button type="button" className="modal-close" onClick={onClose} aria-label="Close layers"><X size={19} /></button>
         <div className="eyebrow"><Layers3 size={12} /> Map layers</div>
-        <h2 id="layers-title">Choose what the globe reveals</h2>
-        <p>Routes are schematic teaching aids. They show connections, not a precise surveyed path or a complete network.</p>
-        <div className="layer-options">
+        <h2 id="layers-title" tabIndex={-1} data-dialog-focus>Choose what the globe reveals</h2>
+        <p id="layers-description">Routes are schematic teaching aids. They show connections, not a precise surveyed path or a complete network.</p>
+        <div id="layers-status" className="layer-status" role="status" aria-live="polite">{activeLayerCount} of {options.length} optional layers visible</div>
+        <div className="layer-options" role="group" aria-label="Map layer visibility">
           {options.map((option) => (
             <label key={option.key}>
               <input type="checkbox" checked={layers[option.key]} onChange={() => onChange({ ...layers, [option.key]: !layers[option.key] })} />

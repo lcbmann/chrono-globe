@@ -7,7 +7,6 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const outputDirectory = join(root, 'public', 'data')
 const mapDirectory = join(outputDirectory, 'maps')
 const sourceRepository = 'aourednik/historical-basemaps'
-const sourceBase = `https://raw.githubusercontent.com/${sourceRepository}/master`
 
 await mkdir(mapDirectory, { recursive: true })
 
@@ -29,8 +28,27 @@ const downloadJson = async (url) => {
 
 const knownTextRepairs = new Map([
   ['Arag�n', 'Aragón'],
+  ['Baltic tribes', 'Baltic Tribes'],
+  ['Chinese warlords', 'Chinese Warlords'],
+  ['CochimÃ­', 'Cochimí'],
+  ['Cochimà', 'Cochimí'],
+  ['Eastern North Amercian hunter-gatherers', 'Eastern North American hunter-gatherers'],
+  ['HIghland Mesolithic Hunter-Foragers', 'Highland Mesolithic Hunter-Foragers'],
+  ['Hindu kingdoms', 'Hindu Kingdoms'],
+  ['Khoiasan', 'Khoisan'],
+  ['Maori', 'Māori'],
+  ['M?ori', 'Māori'],
   ['Monte Alb�n', 'Monte Albán'],
+  ['Monte Alb?n', 'Monte Albán'],
+  ['Monte Albàn', 'Monte Albán'],
+  ['North American Pacifi foraging, hunting and fishing peoples', 'North American Pacific foraging, hunting and fishing peoples'],
+  ['Plateau fichers and hunter gatherers', 'Plateau fishers and hunter-gatherers'],
+  ['Rajput kingdoms', 'Rajput Kingdoms'],
+  ['Saharan pastoral nomads', 'Saharan Pastoral Nomads'],
   ['Teotihuac�n', 'Teotihuacán'],
+  ['Teotihuacàn', 'Teotihuacán'],
+  ['Tokugawa shogunate', 'Tokugawa Shogunate'],
+  ['Zhow states', 'Zhou states'],
 ])
 
 const cleanText = (value) => {
@@ -38,6 +56,25 @@ const cleanText = (value) => {
   const cleaned = value.replace(/\s+/g, ' ').trim()
   return knownTextRepairs.get(cleaned) || cleaned || null
 }
+
+const roundCoordinates = (value) => Array.isArray(value)
+  ? value.map(roundCoordinates)
+  : typeof value === 'number' ? Number(value.toFixed(5)) : value
+
+// Resolve the branch once and download every file from that immutable revision,
+// preventing a long sync from mixing files if upstream changes mid-run.
+const commitResponse = await fetch(`https://api.github.com/repos/${sourceRepository}/commits/master`, {
+  headers: { Accept: 'application/vnd.github+json' },
+})
+if (!commitResponse.ok) {
+  throw new Error(`Could not resolve an immutable Historical Basemaps revision: ${commitResponse.status}`)
+}
+const commit = await commitResponse.json()
+if (typeof commit.sha !== 'string' || !/^[0-9a-f]{40}$/i.test(commit.sha)) {
+  throw new Error('Historical Basemaps returned an invalid commit revision.')
+}
+const sourceRevision = commit.sha
+const sourceBase = `https://raw.githubusercontent.com/${sourceRepository}/${sourceRevision}`
 
 const sourceIndex = await downloadJson(`${sourceBase}/index.json`)
 const maps = []
@@ -53,10 +90,12 @@ for (const [position, item] of sourceIndex.years.entries()) {
     }
   }
 
-  const filename = `${item.year}.geojson`
-  await writeFile(join(mapDirectory, filename), `${JSON.stringify(map)}\n`, 'utf8')
+  // Unnamed geometries cannot be identified or explained by the interface.
+  // Removing them avoids shipping work that the renderer immediately discards.
+  map.features = map.features.filter((feature) => feature.properties?.NAME && feature.properties.NAME !== '?')
 
-  const namedFeatures = map.features.filter((feature) => feature.properties?.NAME)
+  const filename = `${item.year}.geojson`
+  const namedFeatures = map.features
   const entitiesThisYear = new Map()
   for (const feature of namedFeatures) {
     const properties = feature.properties
@@ -83,13 +122,16 @@ for (const [position, item] of sourceIndex.years.entries()) {
     features: namedFeatures.length,
   })
 
+  // Preserve full precision for historical area/index calculations above, then
+  // trim only the browser payload. Five decimal places is finer than this
+  // dataset's source certainty while materially reducing download and parse cost.
+  for (const feature of namedFeatures) {
+    if (feature.geometry?.coordinates) feature.geometry.coordinates = roundCoordinates(feature.geometry.coordinates)
+  }
+  await writeFile(join(mapDirectory, filename), `${JSON.stringify(map)}\n`, 'utf8')
+
   process.stdout.write(`\rSynced ${position + 1}/${sourceIndex.years.length} historical maps`)
 }
-
-const commitResponse = await fetch(`https://api.github.com/repos/${sourceRepository}/commits/master`, {
-  headers: { Accept: 'application/vnd.github+json' },
-})
-const commit = commitResponse.ok ? await commitResponse.json() : null
 
 const entities = [...entityHistory.values()].map((entity) => ({
   ...entity,
@@ -111,7 +153,7 @@ await writeFile(
       entities,
       updatedAt: new Date().toISOString(),
       source: `https://github.com/${sourceRepository}`,
-      sourceCommit: commit?.sha ?? null,
+      sourceCommit: sourceRevision,
       license: 'GPL-3.0',
     },
     null,

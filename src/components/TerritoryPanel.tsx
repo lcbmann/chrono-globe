@@ -1,14 +1,19 @@
-import { useState } from 'react'
-import { geoCentroid } from 'd3-geo'
-import { BookOpen, CalendarSearch, LocateFixed, MapPin, Play, Route, Search, Sparkles, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { geoCentroid, geoDistance } from 'd3-geo'
+import { ArrowLeft, BookOpen, CalendarSearch, Compass, LoaderCircle, LocateFixed, MapPin, Pause, Play, Route, Search, SlidersHorizontal, Sparkles, X } from 'lucide-react'
 import { getCivilizationProfile } from '../data/civilizations'
 import { commonsImageUrl, getCivilizationMedia } from '../data/civilizationMedia'
+import { useDialogFocus } from '../hooks/useDialogFocus'
 import { entityColor } from '../lib/entities'
 import { formatYear } from '../lib/time'
 import type { EntitySummary, HistoricalEntityIndex, HistoricalEvent, HistoricalPoint, HistoricalRoute } from '../types'
 import { CivilizationMedia } from './CivilizationMedia'
 
 interface TerritoryPanelProps {
+  mobileLayout?: boolean
+  mobileOpen?: boolean
+  onMobileClose?: () => void
+  loading?: boolean
   entities: EntitySummary[]
   history: HistoricalEntityIndex[]
   selectedKey: string | null
@@ -24,7 +29,9 @@ interface TerritoryPanelProps {
   onEventSelect: (event: HistoricalEvent) => void
   onHistoryYearSelect: (year: number) => void
   onWatchEntity: (entity: HistoricalEntityIndex) => void
+  onOpenStories: () => void
   watchingEntity: string | null
+  entityWatchPlaying: boolean
   sourceYear?: number
   datasetSource?: string
   sourceCommit?: string | null
@@ -37,6 +44,7 @@ const culturalPattern = /culture|peoples?|tribes?|hunter|gatherer|pastoral|farme
 const eras = {
   all: [-123000, 2010], ancient: [-123000, 500], medieval: [500, 1500], early: [1500, 1800], modern: [1800, 2010],
 } as const
+const resultPageSize = 120
 
 const regionForEntity = (entity: EntitySummary) => {
   const [lng, lat] = geoCentroid({ type: 'FeatureCollection', features: entity.features })
@@ -49,39 +57,134 @@ const regionForEntity = (entity: EntitySummary) => {
 }
 
 export function TerritoryPanel({
+  mobileLayout = false, mobileOpen = false, onMobileClose, loading = false,
   entities, history, selectedKey, selectedEvent, selectedPoint, selectedRoute, nearbyEvents, year, query,
-  onQueryChange, onSelect, onHistoricalSelect, onEventSelect, onHistoryYearSelect, onWatchEntity, watchingEntity,
-  sourceYear, datasetSource, sourceCommit, license, onClear,
+  onQueryChange, onSelect, onHistoricalSelect, onEventSelect, onHistoryYearSelect, onWatchEntity, watchingEntity, entityWatchPlaying,
+  onOpenStories, sourceYear, datasetSource, sourceCommit, license, onClear,
 }: TerritoryPanelProps) {
   const [entityFilter, setEntityFilter] = useState('all')
   const [regionFilter, setRegionFilter] = useState('all')
   const [eraFilter, setEraFilter] = useState<keyof typeof eras>('all')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [resultLimit, setResultLimit] = useState(resultPageSize)
+  const closeMobileDialog = () => { onMobileClose?.() }
+  const mobileDialogRef = useDialogFocus<HTMLElement>(mobileLayout && mobileOpen, closeMobileDialog)
   const selected = entities.find((entity) => entity.key === selectedKey)
   const historical = history.find((entity) => entity.key === selectedKey)
   const profile = selectedKey ? getCivilizationProfile(selectedKey) : undefined
   const media = selectedKey ? getCivilizationMedia(selectedKey) : undefined
   const normalizedQuery = query.trim().toLowerCase()
-  const visibleMatches = entities.filter((entity) => {
+  const historyByKey = useMemo(() => new Map(history.map((entity) => [entity.key, entity])), [history])
+  const searchableEntities = useMemo(() => entities.map((entity) => {
     const matchedProfile = getCivilizationProfile(entity.key)
+    return {
+      entity,
+      matchedProfile,
+      searchText: `${entity.name} ${entity.subject} ${entity.partOf || ''} ${entity.control || ''} ${matchedProfile?.displayName || ''} ${matchedProfile?.names.join(' ') || ''} ${entity.features.map((feature) => feature.properties.NAME).join(' ')}`.toLowerCase(),
+    }
+  }), [entities])
+  const searchableHistory = useMemo(() => history.map((entity) => {
+    const matchedProfile = getCivilizationProfile(entity.key)
+    return {
+      entity,
+      matchedProfile,
+      searchText: `${entity.name} ${entity.aliases.join(' ')} ${matchedProfile?.displayName || ''} ${matchedProfile?.names.join(' ') || ''}`.toLowerCase(),
+    }
+  }), [history])
+  const regionByKey = useMemo(() => regionFilter === 'all'
+    ? null
+    : new Map(entities.map((entity) => [entity.key, regionForEntity(entity)])), [entities, regionFilter])
+  const [eraStart, eraEnd] = eras[eraFilter]
+  const visibleMatches = searchableEntities.filter(({ entity, matchedProfile, searchText }) => {
     const matchesType = entityFilter === 'all' || (entityFilter === 'profiled' ? Boolean(matchedProfile) : entityFilter === 'cultural' ? culturalPattern.test(entity.key) : !culturalPattern.test(entity.key))
-    const matchesRegion = regionFilter === 'all' || regionForEntity(entity) === regionFilter
-    return matchesType && matchesRegion && `${entity.name} ${entity.subject} ${entity.partOf || ''} ${entity.control || ''} ${matchedProfile?.displayName || ''} ${matchedProfile?.names.join(' ') || ''} ${entity.features.map((feature) => feature.properties.NAME).join(' ')}`
-      .toLowerCase().includes(normalizedQuery)
-  }).sort((left, right) => normalizedQuery ? left.name.localeCompare(right.name) : (getCivilizationProfile(right.key)?.importance || 0) - (getCivilizationProfile(left.key)?.importance || 0) || left.name.localeCompare(right.name))
+    const matchesRegion = regionFilter === 'all' || regionByKey?.get(entity.key) === regionFilter
+    const chronology = historyByKey.get(entity.key)
+    const matchesEra = eraFilter === 'all' || Boolean(chronology && chronology.lastYear >= eraStart && chronology.firstYear <= eraEnd)
+    return matchesType && matchesRegion && matchesEra && searchText.includes(normalizedQuery)
+  }).map(({ entity }) => entity).sort((left, right) => normalizedQuery ? left.name.localeCompare(right.name) : (getCivilizationProfile(right.key)?.importance || 0) - (getCivilizationProfile(left.key)?.importance || 0) || left.name.localeCompare(right.name))
   const visibleKeys = new Set(visibleMatches.map((entity) => entity.key))
-  const historicalMatches = normalizedQuery
-    ? history.filter((entity) => {
-      const matchedProfile = getCivilizationProfile(entity.key)
-      const [eraStart, eraEnd] = eras[eraFilter]
+  const visibleProfileNames = new Set(visibleMatches.flatMap((entity) => {
+    const displayName = getCivilizationProfile(entity.key)?.displayName.trim().toLowerCase()
+    return displayName ? [displayName] : []
+  }))
+  const historicalMatches = normalizedQuery || eraFilter !== 'all'
+    ? searchableHistory.filter(({ entity, matchedProfile, searchText }) => {
       const matchesEra = entity.lastYear >= eraStart && entity.firstYear <= eraEnd
       const matchesType = entityFilter === 'all' || (entityFilter === 'profiled' ? Boolean(matchedProfile) : entityFilter === 'cultural' ? culturalPattern.test(entity.key) : !culturalPattern.test(entity.key))
-      return !visibleKeys.has(entity.key) && matchesEra && matchesType && `${entity.name} ${entity.aliases.join(' ')} ${matchedProfile?.displayName || ''} ${matchedProfile?.names.join(' ') || ''}`.toLowerCase().includes(normalizedQuery)
-    }).slice(0, 80)
+      const matchesQuery = !normalizedQuery || searchText.includes(normalizedQuery)
+      const representedByVisibleProfile = matchedProfile && visibleProfileNames.has(matchedProfile.displayName.trim().toLowerCase())
+      return !visibleKeys.has(entity.key) && !representedByVisibleProfile && matchesEra && matchesType && matchesQuery
+    }).map(({ entity }) => entity).sort((left, right) => (getCivilizationProfile(right.key)?.importance || 0) - (getCivilizationProfile(left.key)?.importance || 0) || left.name.localeCompare(right.name))
     : []
   const hasDetail = Boolean(selected || historical || selectedEvent || selectedPoint || selectedRoute)
+  const detailFocusKey = selectedEvent?.id || selectedPoint?.id || selectedRoute?.id || selected?.key || historical?.key || null
+  const nearbyMoments = selectedEvent ? nearbyEvents.filter((event) => event.id !== selectedEvent.id).slice(0, 2) : []
+  const relatedEntities = selected ? (() => {
+    const center = geoCentroid({ type: 'FeatureCollection', features: selected.features })
+    if (!center.every(Number.isFinite)) return []
+    return entities
+      .filter((entity) => entity.key !== selected.key && Boolean(getCivilizationProfile(entity.key)))
+      .map((entity) => ({ entity, distance: geoDistance(center, geoCentroid({ type: 'FeatureCollection', features: entity.features })) }))
+      .filter((item) => Number.isFinite(item.distance))
+      .sort((left, right) => left.distance - right.distance || (getCivilizationProfile(right.entity.key)?.importance || 0) - (getCivilizationProfile(left.entity.key)?.importance || 0))
+      .slice(0, 3)
+      .map((item) => item.entity)
+  })() : []
+  const activeFilterCount = [entityFilter, regionFilter, eraFilter].filter((filter) => filter !== 'all').length
+  const renderedVisibleMatches = visibleMatches.slice(0, resultLimit)
+  const remainingResultSlots = Math.max(0, resultLimit - renderedVisibleMatches.length)
+  const renderedHistoricalMatches = historicalMatches.slice(0, remainingResultSlots)
+  const totalResultCount = visibleMatches.length + historicalMatches.length
+  const renderedResultCount = renderedVisibleMatches.length + renderedHistoricalMatches.length
+  const remainingResultCount = Math.max(0, totalResultCount - renderedResultCount)
+  const nextResultCount = Math.min(resultPageSize, remainingResultCount)
+  const shouldRenderResultRows = !mobileLayout || (mobileOpen && !hasDetail)
+
+  useEffect(() => {
+    if (!mobileLayout || !mobileOpen || !detailFocusKey) return
+    const focusFrame = window.requestAnimationFrame(() => {
+      mobileDialogRef.current?.querySelector<HTMLElement>('#historical-explorer-title')?.focus()
+    })
+    return () => window.cancelAnimationFrame(focusFrame)
+  }, [detailFocusKey, mobileDialogRef, mobileLayout, mobileOpen])
+
+  useEffect(() => {
+    setResultLimit(resultPageSize)
+  }, [entities, entityFilter, eraFilter, query, regionFilter])
+
+  const resetDiscovery = () => {
+    onQueryChange('')
+    setEntityFilter('all')
+    setRegionFilter('all')
+    setEraFilter('all')
+    setFiltersOpen(false)
+  }
+  const surpriseMe = () => {
+    const candidates = visibleMatches.filter((entity) => getCivilizationProfile(entity.key))
+    const pool = candidates.length > 0 ? candidates : visibleMatches
+    const candidate = pool[Math.floor(Math.random() * pool.length)]
+    if (candidate) onSelect(candidate)
+  }
 
   return (
-    <aside className="territory-panel" aria-label="Historical explorer">
+    <aside
+      ref={mobileDialogRef}
+      id="historical-explorer"
+      className={`territory-panel ${mobileOpen ? 'mobile-open' : ''} ${hasDetail ? 'has-detail' : ''}`}
+      role={mobileLayout && mobileOpen ? 'dialog' : undefined}
+      aria-modal={mobileLayout && mobileOpen ? true : undefined}
+      aria-labelledby={mobileLayout && mobileOpen ? 'historical-explorer-title' : undefined}
+      aria-label={mobileLayout ? undefined : 'Historical explorer'}
+      aria-hidden={mobileLayout && !mobileOpen}
+      inert={mobileLayout && !mobileOpen}
+    >
+      <div className="mobile-panel-heading">
+        <i aria-hidden="true" />
+        <strong id="historical-explorer-title" tabIndex={mobileLayout ? -1 : undefined} data-dialog-focus={mobileLayout ? true : undefined}>{hasDetail ? 'Civilization details' : 'Explore history'}</strong>
+        <button type="button" onClick={hasDetail ? onClear : onMobileClose} aria-label={hasDetail ? 'Back to explorer results' : 'Close historical explorer'}>
+          {hasDetail ? <ArrowLeft size={17} /> : <X size={17} />}
+        </button>
+      </div>
       {hasDetail ? (
         <article className="entity-detail">
           <button type="button" className="close-detail" onClick={onClear} aria-label="Close details" title="Close details"><X size={18} /></button>
@@ -91,6 +194,12 @@ export function TerritoryPanel({
               <h2>{selectedEvent.title}</h2>
               <p className="profile-overview">{selectedEvent.description}</p>
               <a className="source-link" href={selectedEvent.source.url} target="_blank" rel="noreferrer"><BookOpen size={13} /> Read at {selectedEvent.source.title}</a>
+              {nearbyMoments.length > 0 && (
+                <section className="related-exploration" aria-label="More moments around this date">
+                  <h3><CalendarSearch size={13} /> More around this date</h3>
+                  <div className="related-links">{nearbyMoments.map((event) => <button type="button" key={event.id} onClick={() => onEventSelect(event)}><span>{formatYear(event.year)}</span><strong>{event.title}</strong></button>)}</div>
+                </section>
+              )}
             </>
           ) : selectedPoint ? (
             <>
@@ -145,8 +254,18 @@ export function TerritoryPanel({
                     <button type="button" onClick={() => onHistoryYearSelect(historical.peakYear)}><span>Largest</span>{formatYear(historical.peakYear)}</button>
                     <button type="button" onClick={() => onHistoryYearSelect(historical.lastYear)}><span>Last</span>{formatYear(historical.lastYear)}</button>
                   </div>
-                  <button type="button" className="watch-history" onClick={() => onWatchEntity(historical)}><Play size={13} fill="currentColor" /> {watchingEntity === historical.key ? 'Watching history' : 'Watch its mapped history'}</button>
+                  <button type="button" className={`watch-history ${watchingEntity === historical.key ? 'active' : ''}`} aria-pressed={watchingEntity === historical.key && entityWatchPlaying} onClick={() => onWatchEntity(historical)}>
+                    {watchingEntity === historical.key && entityWatchPlaying ? <Pause size={13} fill="currentColor" /> : <Play size={13} fill="currentColor" />}
+                    {watchingEntity === historical.key ? entityWatchPlaying ? 'Pause mapped history' : year !== undefined && year >= historical.lastYear ? 'Replay mapped history' : 'Resume mapped history' : 'Watch its mapped history'}
+                  </button>
                   <p>Chrono Globe does not infer predecessor or successor states where the source data does not explicitly establish that relationship.</p>
+                </section>
+              )}
+              {relatedEntities.length > 0 && (
+                <section className="related-exploration" aria-label="Nearby curated civilizations">
+                  <h3><Compass size={13} /> Nearby in this map</h3>
+                  <div className="related-links">{relatedEntities.map((entity) => <button type="button" key={entity.key} onClick={() => onSelect(entity)}><span className="color-swatch" style={{ background: entityColor(entity.key) }} /><strong>{getCivilizationProfile(entity.key)?.displayName || entity.name}</strong></button>)}</div>
+                  <p>Suggested by mapped proximity at this date, not a claim of direct contact.</p>
                 </section>
               )}
               {datasetSource && <div className="map-source"><span>Map reconstruction</span><strong>{sourceYear === undefined ? 'Historical Basemaps' : formatYear(sourceYear)}</strong><a href={datasetSource} target="_blank" rel="noreferrer">Source dataset</a>{sourceCommit && <small>Revision {sourceCommit.slice(0, 8)}</small>}{license && <small>{license}</small>}</div>}
@@ -156,8 +275,12 @@ export function TerritoryPanel({
       ) : (
         <div className="panel-intro">
           <div className="eyebrow">In {year === undefined ? 'this moment in history' : formatYear(year)}</div>
-          <h2>{entities.length.toLocaleString()} political and cultural entities</h2>
-          <p>Select a region, search across all of history, or open a nearby event.</p>
+          <h2>{loading && entities.length === 0 ? 'Loading this historical map…' : `${entities.length.toLocaleString()} political and cultural entities`}</h2>
+          <p>{loading && entities.length === 0 ? 'Search across all of history while the source reconstruction is prepared.' : 'Select a region, search across all of history, or open a nearby event.'}</p>
+          <div className="panel-quick-start" aria-label="Ways to begin exploring">
+            <button type="button" onClick={onOpenStories}><Sparkles size={13} /><span><strong>Follow a story</strong><small>Take a short guided route</small></span></button>
+            <button type="button" onClick={surpriseMe} disabled={visibleMatches.length === 0}><Compass size={13} /><span><strong>Surprise me</strong><small>Open a notable civilization</small></span></button>
+          </div>
         </div>
       )}
 
@@ -170,40 +293,61 @@ export function TerritoryPanel({
 
       <div className="search-field">
         <Search size={16} aria-hidden="true" />
-        <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search all civilizations" aria-label="Search all civilizations and years" />
+        <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search all civilizations" aria-label="Search civilization names and aliases" />
         {query && <button type="button" onClick={() => onQueryChange('')} aria-label="Clear search" title="Clear search"><X size={15} /></button>}
       </div>
 
-      <div className="discovery-filters" aria-label="Civilization filters">
-        <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} aria-label="Entity type"><option value="all">All types</option><option value="profiled">Curated profiles</option><option value="political">Political states</option><option value="cultural">Cultures and peoples</option></select>
-        <select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} aria-label="World region"><option value="all">All regions</option><option value="africa">Africa</option><option value="americas">Americas</option><option value="asia">Asia</option><option value="europe">Europe</option><option value="oceania">Oceania</option></select>
-        <select value={eraFilter} onChange={(event) => setEraFilter(event.target.value as keyof typeof eras)} aria-label="Historical era"><option value="all">All eras</option><option value="ancient">Through 500 CE</option><option value="medieval">500–1500</option><option value="early">1500–1800</option><option value="modern">After 1800</option></select>
+      <div className="mobile-filter-row">
+        <button type="button" aria-expanded={filtersOpen} aria-controls="civilization-filters" onClick={() => setFiltersOpen((current) => !current)}>
+          <SlidersHorizontal size={13} /> Filters{activeFilterCount > 0 && <span>{activeFilterCount}</span>}
+        </button>
+        {(activeFilterCount > 0 || normalizedQuery) && <button type="button" onClick={resetDiscovery}>Reset</button>}
       </div>
 
-      <div className="entity-list" role="list">
-        {!normalizedQuery && visibleMatches.some((entity) => getCivilizationProfile(entity.key)) && <div className="list-divider featured-divider"><Sparkles size={12} /> Major profiles in this view</div>}
-        {visibleMatches.map((entity) => (
-          <button type="button" className={entity.key === selectedKey ? 'active' : ''} key={entity.key} onClick={() => onSelect(entity)}>
-            <span className="entity-marker" style={{ '--entity-color': entityColor(entity.key) } as React.CSSProperties}>
-              <span className="color-swatch" />
-              {getCivilizationMedia(entity.key)?.symbol && <img src={commonsImageUrl(getCivilizationMedia(entity.key)!.symbol!, 96)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={(event) => event.currentTarget.remove()} />}
-            </span>
-            <span className="entity-copy"><strong>{getCivilizationProfile(entity.key)?.displayName || entity.name}</strong><small><LocateFixed size={9} /> Visible now</small></span>
-            <span className={`precision precision-${entity.precision}`} title={confidence[entity.precision]} aria-label={confidence[entity.precision]} />
-          </button>
-        ))}
-        {historicalMatches.length > 0 && <div className="list-divider"><CalendarSearch size={12} /> Elsewhere in the timeline</div>}
-        {historicalMatches.map((entity) => (
-          <button type="button" key={entity.key} onClick={() => onHistoricalSelect(entity)}>
-            <span className="entity-marker" style={{ '--entity-color': entityColor(entity.key) } as React.CSSProperties}>
-              <span className="color-swatch" />
-              {getCivilizationMedia(entity.key)?.symbol && <img src={commonsImageUrl(getCivilizationMedia(entity.key)!.symbol!, 96)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={(event) => event.currentTarget.remove()} />}
-            </span>
-            <span className="entity-copy"><strong>{getCivilizationProfile(entity.key)?.displayName || entity.name}</strong><small>{formatYear(entity.firstYear)}–{formatYear(entity.lastYear)} · jump to map</small></span>
-            <CalendarSearch size={12} className="timeline-result-icon" />
-          </button>
-        ))}
-        {visibleMatches.length === 0 && historicalMatches.length === 0 && <p className="empty-state">No civilization matches “{query}”.</p>}
+      <div id="civilization-filters" className={`discovery-filters ${filtersOpen ? 'mobile-open' : ''}`} aria-label="Civilization filters">
+        <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} aria-label="Entity type"><option value="all">All types</option><option value="profiled">Curated profiles</option><option value="political">Political states</option><option value="cultural">Cultures and peoples</option></select>
+        <select value={regionFilter} onChange={(event) => setRegionFilter(event.target.value)} aria-label="Current map region"><option value="all">All regions</option><option value="africa">Africa</option><option value="americas">Americas</option><option value="asia">Asia</option><option value="europe">Europe</option><option value="oceania">Oceania</option></select>
+        <select value={eraFilter} onChange={(event) => setEraFilter(event.target.value as keyof typeof eras)} aria-label="All-history search era"><option value="all">All eras</option><option value="ancient">Through 500 CE</option><option value="medieval">500–1500</option><option value="early">1500–1800</option><option value="modern">After 1800</option></select>
+      </div>
+
+      <div className="entity-list" role="list" aria-busy={loading}>
+        {shouldRenderResultRows && <>
+          {!normalizedQuery && renderedVisibleMatches.some((entity) => getCivilizationProfile(entity.key)) && <div className="list-divider featured-divider"><Sparkles size={12} /> Major profiles in this view</div>}
+          {renderedVisibleMatches.map((entity) => (
+            <button type="button" className={entity.key === selectedKey ? 'active' : ''} key={entity.key} onClick={() => onSelect(entity)}>
+              <span className="entity-marker" style={{ '--entity-color': entityColor(entity.key) } as React.CSSProperties}>
+                <span className="color-swatch" />
+                {getCivilizationMedia(entity.key)?.symbol && <img src={commonsImageUrl(getCivilizationMedia(entity.key)!.symbol!, 96)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={(event) => event.currentTarget.remove()} />}
+              </span>
+              <span className="entity-copy"><strong>{getCivilizationProfile(entity.key)?.displayName || entity.name}</strong><small><LocateFixed size={9} /> Visible now</small></span>
+              <span className={`precision precision-${entity.precision}`} title={confidence[entity.precision]} aria-label={confidence[entity.precision]} />
+            </button>
+          ))}
+          {renderedHistoricalMatches.length > 0 && <div className="list-divider"><CalendarSearch size={12} /> {normalizedQuery ? 'Elsewhere in the timeline' : 'Elsewhere in the selected era'}</div>}
+          {renderedHistoricalMatches.map((entity) => (
+            <button type="button" key={entity.key} onClick={() => onHistoricalSelect(entity)}>
+              <span className="entity-marker" style={{ '--entity-color': entityColor(entity.key) } as React.CSSProperties}>
+                <span className="color-swatch" />
+                {getCivilizationMedia(entity.key)?.symbol && <img src={commonsImageUrl(getCivilizationMedia(entity.key)!.symbol!, 96)} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={(event) => event.currentTarget.remove()} />}
+              </span>
+              <span className="entity-copy"><strong>{getCivilizationProfile(entity.key)?.displayName || entity.name}</strong><small>{formatYear(entity.firstYear)}–{formatYear(entity.lastYear)} · jump to map</small></span>
+              <CalendarSearch size={12} className="timeline-result-icon" />
+            </button>
+          ))}
+          {remainingResultCount > 0 && (
+            <button
+              type="button"
+              className="show-more-results"
+              onClick={() => setResultLimit((current) => current + resultPageSize)}
+              aria-label={`Show ${nextResultCount.toLocaleString()} more civilization results`}
+            >
+              <span>Show more</span><small>{remainingResultCount.toLocaleString()} remaining</small>
+            </button>
+          )}
+          {loading && totalResultCount === 0 && !normalizedQuery && activeFilterCount === 0
+            ? <div className="empty-state loading-state" role="status"><LoaderCircle size={16} className="spin" /><p>Preparing entities for this map…</p></div>
+            : totalResultCount === 0 && <div className="empty-state"><p>{normalizedQuery ? `No civilization matches “${query}”.` : 'No civilizations match these filters.'}</p><button type="button" onClick={resetDiscovery}>Reset search and filters</button></div>}
+        </>}
       </div>
     </aside>
   )

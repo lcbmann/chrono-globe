@@ -21,6 +21,7 @@ describe('entity helpers', () => {
 
   it('assigns stable colors and escapes tooltip text', () => {
     expect(entityColor('Rome')).toBe(entityColor('Rome'))
+    expect(entityColor('MONGOL EMPIRE')).toBe(entityColor('Mongols'))
     expect(escapeHtml('<script>')).toBe('&lt;script&gt;')
   })
 })

@@ -9,13 +9,13 @@
     {
       "year": -10000,
       "filename": "maps/-10000.geojson",
-      "entities": 14,
+      "entities": 13,
       "features": 16
     },
     {
       "year": -8000,
       "filename": "maps/-8000.geojson",
-      "entities": 15,
+      "entities": 14,
       "features": 17
     },
     {
@@ -87,8 +87,8 @@
     {
       "year": -200,
       "filename": "maps/-200.geojson",
-      "entities": 86,
-      "features": 86
+      "entities": 85,
+      "features": 85
     },
     {
       "year": -100,
@@ -320,18 +320,6 @@
     }
   ],
   "entities": [
-    {
-      "key": "?",
-      "name": "?",
-      "aliases": [],
-      "years": [
-        -200
-      ],
-      "peakYear": -200,
-      "maxArea": 0.0010171822969817692,
-      "firstYear": -200,
-      "lastYear": -200
-    },
     {
       "key": "'Amuwu",
       "name": "'Amuwu",
@@ -3420,28 +3408,17 @@
       "lastYear": 1815
     },
     {
-      "key": "Baltic tribes",
-      "name": "Baltic tribes",
-      "aliases": [],
-      "years": [
-        800,
-        900
-      ],
-      "peakYear": 800,
-      "maxArea": 0.0035595487002020396,
-      "firstYear": 800,
-      "lastYear": 900
-    },
-    {
       "key": "Baltic Tribes",
       "name": "Baltic Tribes",
       "aliases": [],
       "years": [
+        800,
+        900,
         1000
       ],
-      "peakYear": 1000,
-      "maxArea": 0.002980652518290642,
-      "firstYear": 1000,
+      "peakYear": 800,
+      "maxArea": 0.0035595487002020396,
+      "firstYear": 800,
       "lastYear": 1000
     },
     {
@@ -7020,29 +6997,18 @@
       "lastYear": -2000
     },
     {
-      "key": "Chinese warlords",
-      "name": "Chinese warlords",
-      "aliases": [],
-      "years": [
-        1938
-      ],
-      "peakYear": 1938,
-      "maxArea": 0.13433375961952818,
-      "firstYear": 1938,
-      "lastYear": 1938
-    },
-    {
       "key": "Chinese Warlords",
       "name": "Chinese Warlords",
       "aliases": [],
       "years": [
         1920,
-        1930
+        1930,
+        1938
       ],
       "peakYear": 1920,
       "maxArea": 0.13433375961952818,
       "firstYear": 1920,
-      "lastYear": 1930
+      "lastYear": 1938
     },
     {
       "key": "Chinook",
@@ -7571,31 +7537,18 @@
       "lastYear": 1492
     },
     {
-      "key": "CochimÃ­",
-      "name": "CochimÃ­",
-      "aliases": [
-        "Cochimà"
-      ],
-      "years": [
-        1530,
-        1600
-      ],
-      "peakYear": 1530,
-      "maxArea": 0.0017210354191582275,
-      "firstYear": 1530,
-      "lastYear": 1600
-    },
-    {
       "key": "Cochimí",
       "name": "Cochimí",
       "aliases": [],
       "years": [
-        1492
+        1492,
+        1530,
+        1600
       ],
       "peakYear": 1492,
       "maxArea": 0.0018003889132575533,
       "firstYear": 1492,
-      "lastYear": 1492
+      "lastYear": 1600
     },
     {
       "key": "Cochin China",
@@ -9614,8 +9567,8 @@
       "lastYear": 1492
     },
     {
-      "key": "Eastern North Amercian hunter-gatherers",
-      "name": "Eastern North Amercian hunter-gatherers",
+      "key": "Eastern North American hunter-gatherers",
+      "name": "Eastern North American hunter-gatherers",
       "aliases": [],
       "years": [
         -1500,
@@ -13402,20 +13355,7 @@
         -8000
       ],
       "peakYear": -10000,
-      "maxArea": 0.0004720616889558205,
-      "firstYear": -10000,
-      "lastYear": -8000
-    },
-    {
-      "key": "HIghland Mesolithic Hunter-Foragers",
-      "name": "HIghland Mesolithic Hunter-Foragers",
-      "aliases": [],
-      "years": [
-        -10000,
-        -8000
-      ],
-      "peakYear": -10000,
-      "maxArea": 0.0010678390749136858,
+      "maxArea": 0.0015399007638695064,
       "firstYear": -10000,
       "lastYear": -8000
     },
@@ -13437,8 +13377,8 @@
       "lastYear": 500
     },
     {
-      "key": "Hindu kingdoms",
-      "name": "Hindu kingdoms",
+      "key": "Hindu Kingdoms",
+      "name": "Hindu Kingdoms",
       "aliases": [],
       "years": [
         -500,
@@ -13451,25 +13391,14 @@
         300,
         400,
         600,
-        700
-      ],
-      "peakYear": -400,
-      "maxArea": 0.059375709407412165,
-      "firstYear": -500,
-      "lastYear": 700
-    },
-    {
-      "key": "Hindu Kingdoms",
-      "name": "Hindu Kingdoms",
-      "aliases": [],
-      "years": [
+        700,
         1100,
         1700,
         1715
       ],
-      "peakYear": 1100,
-      "maxArea": 0.011204100295525168,
-      "firstYear": 1100,
+      "peakYear": -400,
+      "maxArea": 0.059375709407412165,
+      "firstYear": -500,
       "lastYear": 1715
     },
     {
@@ -17107,11 +17036,16 @@
       "lastYear": 1400
     },
     {
-      "key": "Khoiasan",
-      "name": "Khoiasan",
+      "key": "Khoisan",
+      "name": "Khoisan",
       "aliases": [],
       "years": [
+        -10000,
+        -8000,
         -5000,
+        -4000,
+        -3000,
+        -2000,
         -1500,
         -1000,
         -700,
@@ -17142,24 +17076,8 @@
       ],
       "peakYear": -1500,
       "maxArea": 0.2891028753201356,
-      "firstYear": -5000,
-      "lastYear": 1500
-    },
-    {
-      "key": "Khoisan",
-      "name": "Khoisan",
-      "aliases": [],
-      "years": [
-        -10000,
-        -8000,
-        -4000,
-        -3000,
-        -2000
-      ],
-      "peakYear": -10000,
-      "maxArea": 0.15549782907369233,
       "firstYear": -10000,
-      "lastYear": -2000
+      "lastYear": 1500
     },
     {
       "key": "Khundzi",
@@ -20006,21 +19924,6 @@
       "lastYear": 1492
     },
     {
-      "key": "M?ori",
-      "name": "M?ori",
-      "aliases": [],
-      "years": [
-        1783,
-        1800,
-        1880,
-        1900
-      ],
-      "peakYear": 1783,
-      "maxArea": 0.0061331378695463935,
-      "firstYear": 1783,
-      "lastYear": 1900
-    },
-    {
       "key": "Maan",
       "name": "Maan",
       "aliases": [],
@@ -20869,8 +20772,8 @@
       "lastYear": 1492
     },
     {
-      "key": "Maori",
-      "name": "Maori",
+      "key": "Māori",
+      "name": "Māori",
       "aliases": [],
       "years": [
         1279,
@@ -20881,12 +20784,16 @@
         1650,
         1700,
         1715,
-        1815
+        1783,
+        1800,
+        1815,
+        1880,
+        1900
       ],
       "peakYear": 1279,
       "maxArea": 0.006133137869569519,
       "firstYear": 1279,
-      "lastYear": 1815
+      "lastYear": 1900
     },
     {
       "key": "Maoris",
@@ -23091,19 +22998,6 @@
       "lastYear": 1600
     },
     {
-      "key": "Monte Alb?n",
-      "name": "Monte Alb?n",
-      "aliases": [],
-      "years": [
-        600,
-        700
-      ],
-      "peakYear": 600,
-      "maxArea": 0.001565024815343194,
-      "firstYear": 600,
-      "lastYear": 700
-    },
-    {
       "key": "Monte Albán",
       "name": "Monte Albán",
       "aliases": [],
@@ -23116,24 +23010,15 @@
         100,
         200,
         300,
-        400
+        400,
+        500,
+        600,
+        700
       ],
       "peakYear": -1,
       "maxArea": 0.0015650248153452407,
       "firstYear": -323,
-      "lastYear": 400
-    },
-    {
-      "key": "Monte Albàn",
-      "name": "Monte Albàn",
-      "aliases": [],
-      "years": [
-        500
-      ],
-      "peakYear": 500,
-      "maxArea": 0.001565024815343194,
-      "firstYear": 500,
-      "lastYear": 500
+      "lastYear": 700
     },
     {
       "key": "Montenegro",
@@ -25868,8 +25753,8 @@
       "lastYear": -2000
     },
     {
-      "key": "North American Pacifi foraging, hunting and fishing peoples",
-      "name": "North American Pacifi foraging, hunting and fishing peoples",
+      "key": "North American Pacific foraging, hunting and fishing peoples",
+      "name": "North American Pacific foraging, hunting and fishing peoples",
       "aliases": [],
       "years": [
         -1500,
@@ -28939,8 +28824,8 @@
       "lastYear": 1492
     },
     {
-      "key": "Plateau fichers and hunter gatherers",
-      "name": "Plateau fichers and hunter gatherers",
+      "key": "Plateau fishers and hunter-gatherers",
+      "name": "Plateau fishers and hunter-gatherers",
       "aliases": [],
       "years": [
         -1500,
@@ -30315,27 +30200,16 @@
       "lastYear": 800
     },
     {
-      "key": "Rajput kingdoms",
-      "name": "Rajput kingdoms",
-      "aliases": [],
-      "years": [
-        1000
-      ],
-      "peakYear": 1000,
-      "maxArea": 0.04038795898152716,
-      "firstYear": 1000,
-      "lastYear": 1000
-    },
-    {
       "key": "Rajput Kingdoms",
       "name": "Rajput Kingdoms",
       "aliases": [],
       "years": [
+        1000,
         1200
       ],
       "peakYear": 1200,
       "maxArea": 0.0444542549475114,
-      "firstYear": 1200,
+      "firstYear": 1000,
       "lastYear": 1200
     },
     {
@@ -31096,25 +30970,14 @@
       "lastYear": 700
     },
     {
-      "key": "Saharan pastoral nomads",
-      "name": "Saharan pastoral nomads",
+      "key": "Saharan Pastoral Nomads",
+      "name": "Saharan Pastoral Nomads",
       "aliases": [],
       "years": [
         -2000,
         -1500,
         -1000,
-        -700
-      ],
-      "peakYear": -1500,
-      "maxArea": 0.24753576413412323,
-      "firstYear": -2000,
-      "lastYear": -700
-    },
-    {
-      "key": "Saharan Pastoral Nomads",
-      "name": "Saharan Pastoral Nomads",
-      "aliases": [],
-      "years": [
+        -700,
         -500,
         -400,
         -323,
@@ -31123,7 +30986,7 @@
       ],
       "peakYear": -500,
       "maxArea": 0.25367123032610606,
-      "firstYear": -500,
+      "firstYear": -2000,
       "lastYear": -200
     },
     {
@@ -35179,25 +35042,14 @@
         100,
         200,
         300,
-        400
-      ],
-      "peakYear": -1,
-      "maxArea": 0.0010030117316381084,
-      "firstYear": -323,
-      "lastYear": 400
-    },
-    {
-      "key": "Teotihuacàn",
-      "name": "Teotihuacàn",
-      "aliases": [],
-      "years": [
+        400,
         500,
         600,
         700
       ],
-      "peakYear": 500,
-      "maxArea": 0.0010030117316365862,
-      "firstYear": 500,
+      "peakYear": -1,
+      "maxArea": 0.0010030117316381084,
+      "firstYear": -323,
       "lastYear": 700
     },
     {
@@ -35975,29 +35827,18 @@
       "lastYear": 1492
     },
     {
-      "key": "Tokugawa shogunate",
-      "name": "Tokugawa shogunate",
-      "aliases": [],
-      "years": [
-        1715
-      ],
-      "peakYear": 1715,
-      "maxArea": 0.008990903320243396,
-      "firstYear": 1715,
-      "lastYear": 1715
-    },
-    {
       "key": "Tokugawa Shogunate",
       "name": "Tokugawa Shogunate",
       "aliases": [],
       "years": [
         1650,
-        1700
+        1700,
+        1715
       ],
-      "peakYear": 1650,
-      "maxArea": 0.008831570250819366,
+      "peakYear": 1715,
+      "maxArea": 0.008990903320243396,
       "firstYear": 1650,
-      "lastYear": 1700
+      "lastYear": 1715
     },
     {
       "key": "Tolowa Dee-ni’",
@@ -42017,24 +41858,13 @@
       "aliases": [],
       "years": [
         -500,
-        -400
-      ],
-      "peakYear": -500,
-      "maxArea": 0.03829159202877905,
-      "firstYear": -500,
-      "lastYear": -400
-    },
-    {
-      "key": "Zhow states",
-      "name": "Zhow states",
-      "aliases": [],
-      "years": [
+        -400,
         -323,
         -300
       ],
       "peakYear": -323,
       "maxArea": 0.04629566901550296,
-      "firstYear": -323,
+      "firstYear": -500,
       "lastYear": -300
     },
     {
@@ -42179,7 +42009,7 @@
       "lastYear": 1492
     }
   ],
-  "updatedAt": "2026-07-14T12:03:56.341Z",
+  "updatedAt": "2026-08-23T21:25:13.234Z",
   "source": "https://github.com/aourednik/historical-basemaps",
   "sourceCommit": "62d8f1a03a71f2d3ff17f2d166f7553f256bce68",
   "license": "GPL-3.0"

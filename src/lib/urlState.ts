@@ -5,8 +5,11 @@ export interface AtlasUrlState {
   year?: number
   entity?: string
   event?: string
+  point?: string
+  route?: string
   mode?: 'atlas' | 'earth'
   compareYear?: number
+  side?: 'comparison'
   story?: string
   storyStep?: number
   layers?: LayerVisibility
@@ -19,21 +22,34 @@ const finiteNumber = (value: string | null) => {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
+const numberInRange = (value: string | null, minimum: number, maximum: number) => {
+  const parsed = finiteNumber(value)
+  return parsed !== undefined && parsed >= minimum && parsed <= maximum ? parsed : undefined
+}
+
+const nonNegativeInteger = (value: string | null) => {
+  const parsed = finiteNumber(value)
+  return parsed !== undefined && Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined
+}
+
 export const parseAtlasUrl = (search: string): AtlasUrlState => {
   const params = new URLSearchParams(search)
   const enabledLayers = new Set((params.get('layers') || '').split(',').filter(Boolean))
   const hasLayers = params.has('layers')
-  const lat = finiteNumber(params.get('lat'))
-  const lng = finiteNumber(params.get('lng'))
-  const altitude = finiteNumber(params.get('alt'))
+  const lat = numberInRange(params.get('lat'), -90, 90)
+  const lng = numberInRange(params.get('lng'), -180, 180)
+  const altitude = numberInRange(params.get('alt'), .25, 10)
   return {
     year: finiteNumber(params.get('year')),
     entity: params.get('entity') || undefined,
     event: params.get('event') || undefined,
+    point: params.get('point') || undefined,
+    route: params.get('route') || undefined,
     mode: params.get('mode') === 'earth' ? 'earth' : undefined,
     compareYear: finiteNumber(params.get('compare')),
+    side: params.get('side') === 'comparison' ? 'comparison' : undefined,
     story: params.get('story') || undefined,
-    storyStep: finiteNumber(params.get('step')),
+    storyStep: nonNegativeInteger(params.get('step')),
     layers: hasLayers ? Object.fromEntries(Object.keys(defaultLayers).map((key) => [key, enabledLayers.has(key)])) as unknown as LayerVisibility : undefined,
     view: lat !== undefined && lng !== undefined && altitude !== undefined ? { lat, lng, altitude } : undefined,
   }
@@ -44,8 +60,11 @@ export const serializeAtlasUrl = (state: AtlasUrlState) => {
   if (state.year !== undefined) params.set('year', String(state.year))
   if (state.entity) params.set('entity', state.entity)
   if (state.event) params.set('event', state.event)
+  if (state.point) params.set('point', state.point)
+  if (state.route) params.set('route', state.route)
   if (state.mode === 'earth') params.set('mode', 'earth')
   if (state.compareYear !== undefined) params.set('compare', String(state.compareYear))
+  if (state.compareYear !== undefined && state.side === 'comparison') params.set('side', 'comparison')
   if (state.story) params.set('story', state.story)
   if (state.storyStep !== undefined && state.storyStep > 0) params.set('step', String(state.storyStep))
   if (state.layers) {

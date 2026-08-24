@@ -28,6 +28,24 @@ export const historicalStories: HistoricalStory[] = [
     ],
   },
   {
+    id: 'pacific-worlds', title: 'Pacific worlds', subtitle: 'Deep histories of cultivation, voyaging, ceremony, and statecraft', color: '#3d9fc4',
+    steps: [
+      { year: -5000, title: 'Cultivation reshapes a highland wetland', description: 'At Kuk, New Guinea communities developed and repeatedly adapted systems for cultivating useful plants.', eventId: 'kuk-agriculture' },
+      { year: -1000, title: 'Seafarers cross into Remote Oceania', description: 'Communities associated with Lapita pottery carried crops, technologies, and social traditions across immense stretches of open sea.', eventId: 'lapita-remote-oceania' },
+      { year: 1200, title: 'A monumental center on Pohnpei', description: 'Nan Madol’s constructed islets expressed the authority, ceremony, and engineering of the Saudeleur era.', eventId: 'nan-madol' },
+      { year: 1275, title: 'Voyagers settle Aotearoa', description: 'Deliberate voyages from East Polynesia established the communities whose descendants became Māori.', entity: 'Māori', eventId: 'aotearoa-settlement' },
+      { year: 1810, title: 'A unified Hawaiian kingdom', description: 'Kamehameha I brought the islands under a single government through conquest, diplomacy, and negotiation.', eventId: 'hawaiian-unification' },
+    ],
+  },
+  {
+    id: 'indigenous-north-america', title: 'Earthwork and Pueblo centers', subtitle: 'Ohio valleys, the Southwest, and the Mississippi', color: '#b8844d',
+    steps: [
+      { year: 200, title: 'Geometry, gathering, and the cosmos', description: 'Hopewell communities built vast ceremonial earthworks whose precise forms reflected shared knowledge and linked far-reaching exchange networks.', entity: 'Hopewell Culture', eventId: 'hopewell-earthworks' },
+      { year: 1050, title: 'A regional world centered on Chaco', description: 'Ancestral Pueblo builders created multi-storey great houses and roads within a broad ceremonial and exchange system.', eventId: 'chaco-height' },
+      { year: 1100, title: 'A mound center beside the Mississippi', description: 'Cahokia’s population, monumental spaces, and connected settlements made it an extraordinary center of Mississippian life.', eventId: 'cahokia-peak' },
+    ],
+  },
+  {
     id: 'caliphates', title: 'The early caliphates', subtitle: 'New political centers across three continents', color: '#58a966',
     steps: [
       { year: 622, title: 'The Hijra', description: 'The migration to Medina marked a decisive new phase for the early Muslim community.', eventId: 'hijra' },

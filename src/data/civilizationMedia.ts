@@ -114,6 +114,18 @@ export const civilizationMedia: CivilizationMedia[] = [
     image: image('Tikal, Temple I (15773012637).jpg', 'Temple I rising above the forest at Tikal', 'Temple I at Tikal, one of many independent Maya cities.', 'Arian Zwegers', 'by2'),
   },
   {
+    names: ['Hopewell Culture'],
+    image: image('Hopewell Culture National Historical Park HOCU0412.jpg', 'Grass-covered Hopewell mounds and earthworks in the Ohio River Valley', 'Mounds and geometric enclosures at Hopewell Culture National Historical Park.', 'National Park Service Digital Image Archives', 'pd'),
+  },
+  {
+    names: ['Mogollon'],
+    image: image('Gila Cliff Dwellings National Monument 2.jpg', 'Stone rooms built inside a natural cliff alcove in New Mexico', 'The later Gila cliff dwellings, occupied by Tularosa Mogollon families around 1276–1300.', 'Letice Rugula', 'bySa4'),
+  },
+  {
+    names: ['Taos Pueblo'],
+    image: image('Taos Pueblo, New Mexico LCCN2015651512.jpg', 'Historic photograph of multi-storey adobe buildings at Taos Pueblo', 'Taos Pueblo photographed around 1880; it remains a living Indigenous community.', 'Cunningham & Co.; F. A. Nims; Library of Congress', 'pd'),
+  },
+  {
     names: ['Holy Roman Empire'],
     symbol: {
       ...image('Banner of the Holy Roman Emperor with haloes (1430-1806).svg', 'Golden imperial banner with a black double-headed eagle', 'Banner of the Holy Roman Emperor', 'David Liuzzo; eagle by N3MO', 'bySa3'),

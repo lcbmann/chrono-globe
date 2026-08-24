@@ -24,7 +24,9 @@ function MediaFigure({ asset, className = '' }: MediaFigureProps) {
     <figure className={`civilization-media ${className}`}>
       <a className="media-image-link" href={commonsFileUrl(asset)} target="_blank" rel="noreferrer" aria-label={`Open source for ${asset.caption}`}>
         <img
-          src={commonsImageUrl(asset)}
+          src={commonsImageUrl(asset, 480)}
+          srcSet={`${commonsImageUrl(asset, 480)} 480w, ${commonsImageUrl(asset, 720)} 720w, ${commonsImageUrl(asset, 960)} 960w`}
+          sizes="(max-width: 680px) calc(100vw - 32px), 310px"
           alt={asset.alt}
           loading="lazy"
           decoding="async"

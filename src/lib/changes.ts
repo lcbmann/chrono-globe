@@ -71,10 +71,10 @@ export const changeColors: Record<ChangeKind, string> = {
 }
 
 export const changeLabels: Record<ChangeKind, string> = {
-  appeared: 'Appeared',
-  disappeared: 'Disappeared',
-  expanded: 'Expanded',
-  contracted: 'Contracted',
-  control: 'Changed control',
-  stable: 'Little mapped change',
+  appeared: 'Only in second map',
+  disappeared: 'Only in first map',
+  expanded: 'Larger in second map',
+  contracted: 'Smaller in second map',
+  control: 'Recorded control differs',
+  stable: 'Similar mapped extent',
 }

@@ -1,25 +1,44 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { ChevronLeft, ChevronRight, LoaderCircle, Pause, Play, Square } from 'lucide-react'
 import { findNearestYearIndex, formatYear, parseYear } from '../lib/time'
+
+interface WatchedRange {
+  name: string
+  firstYear: number
+  lastYear: number
+}
 
 interface TimelineProps {
   years: number[]
+  sourceYears?: number[]
+  featuredYears?: number[]
   selectedIndex: number
   playing: boolean
+  waiting?: boolean
+  watching?: WatchedRange | null
   onSelectedIndexChange: (index: number) => void
   onPlayingChange: (playing: boolean) => void
+  onStopWatching?: () => void
 }
 
 export function Timeline({
   years,
+  sourceYears = [],
+  featuredYears = [],
   selectedIndex,
   playing,
+  waiting = false,
+  watching = null,
   onSelectedIndexChange,
   onPlayingChange,
+  onStopWatching,
 }: TimelineProps) {
   const selected = years[selectedIndex]
   const [yearInput, setYearInput] = useState(selected !== undefined ? formatYear(selected) : '')
   const [inputError, setInputError] = useState(false)
+  const markerPosition = (year: number) => `${(findNearestYearIndex(years, year) / Math.max(1, years.length - 1)) * 100}%`
+  const sourceMarkers = useMemo(() => [...new Set(sourceYears)], [sourceYears])
+  const featuredMarkers = useMemo(() => [...new Set(featuredYears)], [featuredYears])
 
   useEffect(() => {
     if (selected !== undefined) setYearInput(formatYear(selected))
@@ -42,18 +61,56 @@ export function Timeline({
 
   if (selected === undefined) return null
 
+  const watchedProgress = watching
+    ? Math.max(0, Math.min(1, (selected - watching.firstYear) / Math.max(1, watching.lastYear - watching.firstYear)))
+    : 0
+  const watchingComplete = Boolean(watching && selected >= watching.lastYear)
+  const playLabel = watching
+    ? `${playing ? 'Pause' : watchingComplete ? 'Replay' : 'Resume'} ${watching.name} mapped history`
+    : `${playing ? 'Pause' : 'Play'} timeline`
+
   return (
-    <section className="timeline" aria-label="Historical timeline">
+    <section className={`timeline ${watching ? 'watching-entity' : ''}`} aria-label="Historical timeline">
+      {watching && (
+        <div className="entity-playback-strip" aria-label={`${watching.name} mapped history progress`}>
+          <div className="entity-playback-copy">
+            <span>Mapped history</span>
+            <strong>{watching.name}</strong>
+            <small role="status" aria-live="polite">{waiting ? <><LoaderCircle size={11} className="spin" /> Loading the next complete map</> : playing ? 'Playing sourced snapshots' : selected >= watching.lastYear ? 'History complete' : 'Paused'}</small>
+          </div>
+          <div className="entity-playback-progress">
+            <div
+              className="entity-playback-track"
+              role="progressbar"
+              aria-label={`${watching.name} history progress`}
+              aria-valuemin={watching.firstYear}
+              aria-valuemax={watching.lastYear}
+              aria-valuenow={Math.max(watching.firstYear, Math.min(watching.lastYear, selected))}
+              aria-valuetext={formatYear(selected)}
+            ><i style={{ width: `${watchedProgress * 100}%` }} /><b style={{ left: `${watchedProgress * 100}%` }} /></div>
+            <div><span>{formatYear(watching.firstYear)}</span><em>{formatYear(selected)}</em><span>{formatYear(watching.lastYear)}</span></div>
+          </div>
+          <div className="entity-playback-actions">
+            <button type="button" onClick={() => onPlayingChange(!playing)} aria-label={playLabel} aria-pressed={playing} title={playLabel}>
+              {playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />} {playing ? 'Pause' : watchingComplete ? 'Replay' : 'Resume'}
+            </button>
+            <button type="button" onClick={onStopWatching} aria-label={`Stop watching ${watching.name}`}><Square size={12} fill="currentColor" /> Stop</button>
+          </div>
+        </div>
+      )}
       <div className="timeline-primary">
-        <button
-          type="button"
-          className="icon-button play-button"
-          aria-label={playing ? 'Pause timeline' : 'Play timeline'}
-          title={playing ? 'Pause timeline' : 'Play timeline'}
-          onClick={() => onPlayingChange(!playing)}
-        >
-          {playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
-        </button>
+        {!watching && (
+          <button
+            type="button"
+            className="icon-button play-button"
+            aria-label={playLabel}
+            aria-pressed={playing}
+            title={playLabel}
+            onClick={() => onPlayingChange(!playing)}
+          >
+            {playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}
+          </button>
+        )}
         <button
           type="button"
           className="icon-button"
@@ -65,18 +122,25 @@ export function Timeline({
           <ChevronLeft size={20} />
         </button>
         <div className="range-wrap">
+          <div className="timeline-markers" aria-hidden="true">
+            {sourceMarkers.map((year) => <i className="source-marker" key={year} style={{ left: markerPosition(year) }} />)}
+            {featuredMarkers.map((year) => <i className="featured-marker" key={year} style={{ left: markerPosition(year) }} />)}
+          </div>
+          <span id="timeline-evidence-key" className="sr-only">Gold ticks show {sourceMarkers.length} source-map dates. Blue dots show {featuredMarkers.length} event dates for {featuredYears.length} featured historical moments.</span>
           <input
             aria-label="Historical year"
+            aria-describedby="timeline-evidence-key"
             type="range"
             min={0}
             max={years.length - 1}
             value={selectedIndex}
+            aria-valuetext={formatYear(selected)}
             onChange={(event) => onSelectedIndexChange(Number(event.target.value))}
             style={{ '--timeline-progress': `${(selectedIndex / Math.max(1, years.length - 1)) * 100}%` } as React.CSSProperties}
           />
           <div className="range-labels" aria-hidden="true">
             <span>{formatYear(years[0])}</span>
-            <span>Travel through history</span>
+            <span>{sourceYears.length} source maps · {featuredYears.length} moments</span>
             <span>{formatYear(years.at(-1) || 2010)}</span>
           </div>
         </div>
@@ -97,7 +161,8 @@ export function Timeline({
           id="year-input"
           value={yearInput}
           aria-invalid={inputError}
-          onChange={(event) => setYearInput(event.target.value)}
+          aria-describedby={inputError ? 'year-input-error' : undefined}
+          onChange={(event) => { setYearInput(event.target.value); setInputError(false) }}
           onBlur={commitYear}
           onKeyDown={(event) => {
             if (event.key !== 'Enter') return
@@ -106,6 +171,7 @@ export function Timeline({
           }}
           title="Enter a year such as 323 BCE or 1492 CE"
         />
+        {inputError && <small id="year-input-error" className="field-error" role="alert">Try a year such as 323 BCE or 1492 CE.</small>}
       </form>
     </section>
   )

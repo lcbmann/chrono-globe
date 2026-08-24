@@ -50,6 +50,15 @@ export const buildTimelineYears = (snapshots: Snapshot[], featuredYears: number[
   return [...years].filter((year) => year >= start && year <= end).sort((left, right) => left - right)
 }
 
+export const buildPlaybackYears = (snapshots: Snapshot[], featuredYears: number[] = []) => {
+  if (snapshots.length === 0) return []
+  const start = snapshots[0].year
+  const end = snapshots.at(-1)?.year ?? start
+  return [...new Set([...snapshots.map((snapshot) => snapshot.year), ...featuredYears])]
+    .filter((year) => year !== 0 && year >= start && year <= end)
+    .sort((left, right) => left - right)
+}
+
 export const getSnapshotTransition = (snapshots: Snapshot[], targetYear: number) => {
   const currentIndex = findSourceSnapshotIndex(snapshots, targetYear)
   if (currentIndex < 0) return { currentIndex: -1, nextIndex: -1, progress: 0 }

@@ -4,6 +4,8 @@ const britannica = (article: string) => ({ title: 'Encyclopaedia Britannica', ur
 const unesco = (id: number) => ({ title: 'UNESCO World Heritage Centre', url: `https://whc.unesco.org/en/list/${id}/` })
 
 export const historicalPoints: HistoricalPoint[] = [
+  { id: 'kuk', name: 'Kuk Early Agricultural Site', kind: 'site', lat: -5.78, lng: 144.33, startYear: -5000, endYear: 2010, description: 'A New Guinea highland wetland preserves evidence for an independent development of agriculture and millennia of changing cultivation practices.', source: unesco(887) },
+  { id: 'budj-bim', name: 'Budj Bim Cultural Landscape', kind: 'site', lat: -38.08, lng: 141.89, startYear: -4600, endYear: 2010, description: 'Gunditjmara people engineered channels, weirs, and dams to manage water and harvest kooyang across a continuing cultural landscape.', source: unesco(1577) },
   { id: 'memphis', name: 'Memphis', kind: 'capital', lat: 29.85, lng: 31.25, startYear: -3100, endYear: -1070, entity: 'Egypt', description: 'An early royal center near the head of the Nile delta and a major administrative and religious city.', source: britannica('place/Memphis-ancient-city-Egypt') },
   { id: 'giza', name: 'Giza pyramid complex', kind: 'site', lat: 29.98, lng: 31.13, startYear: -2600, endYear: 2010, entity: 'Egypt', description: 'The Old Kingdom pyramid complex includes the Great Pyramid, monumental tombs, temples, and the Great Sphinx.', source: unesco(86) },
   { id: 'stonehenge', name: 'Stonehenge', kind: 'site', lat: 51.18, lng: -1.83, startYear: -3000, endYear: 2010, description: 'A prehistoric ceremonial landscape constructed and altered over many generations.', source: unesco(373) },
@@ -24,9 +26,13 @@ export const historicalPoints: HistoricalPoint[] = [
   { id: 'borobudur', name: 'Borobudur', kind: 'site', lat: -7.61, lng: 110.2, startYear: 800, endYear: 2010, description: 'A monumental Buddhist sanctuary built in central Java and organized as a symbolic pilgrimage path.', source: unesco(592) },
   { id: 'kyoto', name: 'Kyoto', kind: 'city', lat: 35.01, lng: 135.77, startYear: 794, endYear: 2010, entity: 'Japan', description: 'Japan’s imperial capital for more than a millennium and an enduring center of religion, art, and court culture.', source: unesco(688) },
   { id: 'venice', name: 'Venice', kind: 'city', lat: 45.44, lng: 12.33, startYear: 800, endYear: 1797, description: 'A lagoon city and maritime republic with commercial networks across the Mediterranean and beyond.', source: unesco(394) },
+  { id: 'cahokia', name: 'Cahokia Mounds', kind: 'site', lat: 38.66, lng: -90.06, startYear: 800, endYear: 2010, description: 'The largest known settlement north of Mexico in its era preserves monumental earthworks and evidence of a major Mississippian ceremonial and economic center.', source: unesco(198) },
+  { id: 'chaco-culture', name: 'Chaco Culture', kind: 'site', lat: 36.06, lng: -107.96, startYear: 850, endYear: 2010, description: 'A network of ancestral Pueblo great houses, ceremonial buildings, roads, and outlying communities across the Four Corners region.', source: unesco(353) },
+  { id: 'taputapuatea', name: 'Taputapuātea', kind: 'site', lat: -16.84, lng: -151.37, startYear: 1000, endYear: 2010, description: 'A Māʻohi political, ceremonial, funerary, and religious center on Raʻiātea linked by voyaging traditions to islands across Polynesia.', source: unesco(1529) },
   { id: 'great-zimbabwe-site', name: 'Great Zimbabwe', kind: 'site', lat: -20.27, lng: 30.93, startYear: 1050, endYear: 1450, entity: 'Great Zimbabwe', description: 'A major Shona-speaking political and commercial center known for extensive dry-stone architecture.', source: unesco(364) },
   { id: 'timbuktu', name: 'Timbuktu', kind: 'city', lat: 16.77, lng: -3.0, startYear: 1100, endYear: 1700, description: 'A Niger-bend trading and scholarly center connected to trans-Saharan networks.', source: unesco(119) },
   { id: 'cusco', name: 'Cusco', kind: 'capital', lat: -13.52, lng: -71.97, startYear: 1200, endYear: 1533, entity: 'Inca Empire', description: 'The ritual and administrative heart of Tawantinsuyu, the Inca state.', source: unesco(273) },
+  { id: 'nan-madol-site', name: 'Nan Madol', kind: 'site', lat: 6.84, lng: 158.33, startYear: 1200, endYear: 2010, description: 'A Pohnpeian ceremonial center of basalt and coral architecture built across more than 100 artificial islets.', source: unesco(1503) },
   { id: 'hampi', name: 'Vijayanagara (Hampi)', kind: 'capital', lat: 15.34, lng: 76.46, startYear: 1336, endYear: 1565, entity: 'Vijayanagara', description: 'A fortified south Indian capital with palaces, markets, waterworks, and monumental temple complexes.', source: unesco(241) },
   { id: 'tenochtitlan-city', name: 'Tenochtitlan', kind: 'capital', lat: 19.43, lng: -99.13, startYear: 1325, endYear: 1521, entity: 'Aztec Empire', description: 'The island capital of the Mexica-led Triple Alliance and one of the largest cities in the Americas.', source: britannica('place/Tenochtitlan') },
   { id: 'machu-picchu', name: 'Machu Picchu', kind: 'site', lat: -13.16, lng: -72.55, startYear: 1450, endYear: 1533, entity: 'Inca Empire', description: 'An Inca-built mountain estate with finely constructed terraces, residences, and ceremonial spaces.', source: unesco(274) },
@@ -41,6 +47,7 @@ export const historicalRoutes: HistoricalRoute[] = [
   { id: 'trans-saharan', name: 'Trans-Saharan trade', kind: 'trade', startYear: 700, endYear: 1700, description: 'Caravan routes moved salt, gold, books, textiles, and enslaved people between the Sahel and North Africa.', coordinates: [{ lat: 16.77, lng: -3.0 }, { lat: 21.17, lng: -11.58 }, { lat: 31.28, lng: -4.27 }, { lat: 31.63, lng: -7.99 }], source: britannica('topic/trans-Saharan-trade') },
   { id: 'bantu-migrations', name: 'Bantu-language dispersals', kind: 'migration', startYear: -1500, endYear: 1500, description: 'Many generations of movement and interaction spread Bantu languages, farming, and ironworking through much of central, eastern, and southern Africa.', coordinates: [{ lat: 5.0, lng: 10.0 }, { lat: -2.0, lng: 22.0 }, { lat: -6.0, lng: 31.0 }, { lat: -15.0, lng: 29.0 }, { lat: -25.0, lng: 28.0 }], source: britannica('topic/Bantu-peoples') },
   { id: 'austronesian', name: 'Austronesian expansion', kind: 'migration', startYear: -2000, endYear: 1200, description: 'Seafaring communities carried Austronesian languages and lifeways from island Southeast Asia across the Pacific and to Madagascar.', coordinates: [{ lat: 23.7, lng: 121.0 }, { lat: 14.6, lng: 121.0 }, { lat: -6.2, lng: 106.8 }, { lat: -8.65, lng: 115.2 }, { lat: -18.1, lng: 178.4 }, { lat: -17.7, lng: -149.4 }], source: britannica('topic/Austronesian-languages') },
+  { id: 'pacific-voyaging', name: 'Settlement of Remote Oceania', kind: 'migration', startYear: -1100, endYear: 1300, description: 'A schematic chain of representative waypoints follows many generations of deliberate Pacific voyaging; settlement unfolded through numerous branching and return journeys, not one continuous migration.', coordinates: [{ lat: -4.2, lng: 152.2 }, { lat: -17.73, lng: 168.32 }, { lat: -17.71, lng: 178.07 }, { lat: -21.14, lng: -175.2 }, { lat: -13.76, lng: -172.1 }, { lat: -16.84, lng: -151.37 }, { lat: -38.0, lng: 176.5 }], source: { title: 'Museum of New Zealand Te Papa Tongarewa', url: 'https://collections.tepapa.govt.nz/topic/2346' } },
   { id: 'viking-atlantic', name: 'Norse North Atlantic voyages', kind: 'migration', startYear: 800, endYear: 1050, description: 'Norse sailors settled Iceland and Greenland and reached North America around the turn of the first millennium.', coordinates: [{ lat: 60.39, lng: 5.32 }, { lat: 64.15, lng: -21.94 }, { lat: 64.18, lng: -51.72 }, { lat: 51.6, lng: -55.53 }], source: { title: "UNESCO: L’Anse aux Meadows", url: 'https://whc.unesco.org/en/list/4/' } },
   { id: 'zheng-he-route', name: 'Zheng He’s voyages', kind: 'expedition', startYear: 1405, endYear: 1433, description: 'Seven Ming expeditions connected Chinese ports with Southeast Asia, South Asia, Arabia, and East Africa.', coordinates: [{ lat: 32.06, lng: 118.8 }, { lat: 10.82, lng: 106.63 }, { lat: 1.35, lng: 103.82 }, { lat: 6.93, lng: 79.86 }, { lat: 11.26, lng: 75.78 }, { lat: 12.79, lng: 45.03 }, { lat: -4.05, lng: 39.67 }], source: britannica('biography/Zheng-He') },
   { id: 'columbus-route', name: 'Columbus’s first voyage', kind: 'expedition', startYear: 1492, endYear: 1493, description: 'The Castilian-sponsored Atlantic crossing initiated sustained European colonization of the Americas.', coordinates: [{ lat: 37.2, lng: -6.94 }, { lat: 28.1, lng: -15.4 }, { lat: 24.1, lng: -74.5 }], source: { title: 'Library of Congress', url: 'https://www.loc.gov/exhibits/1492/' } },
@@ -58,10 +65,25 @@ export const defaultLayers: LayerVisibility = {
   expeditions: false,
 }
 
+export const pointLayerKey = (point: Pick<HistoricalPoint, 'kind'>): keyof LayerVisibility => point.kind === 'capital' ? 'capitals' : point.kind === 'city' ? 'cities' : 'sites'
+export const routeLayerKey = (route: Pick<HistoricalRoute, 'kind'>): keyof LayerVisibility => route.kind === 'trade' ? 'trade' : route.kind === 'migration' ? 'migrations' : 'expeditions'
+
+export const layersForDeepLink = (
+  explicitLayers: LayerVisibility | undefined,
+  point: HistoricalPoint | undefined,
+  route: HistoricalRoute | undefined,
+): LayerVisibility => {
+  const layers = { ...(explicitLayers || defaultLayers) }
+  if (explicitLayers) return layers
+  if (point) layers[pointLayerKey(point)] = true
+  if (route) layers[routeLayerKey(route)] = true
+  return layers
+}
+
 export const pointsForYear = (year: number, layers: LayerVisibility) => historicalPoints.filter((point) =>
-  point.startYear <= year && point.endYear >= year && layers[point.kind === 'capital' ? 'capitals' : point.kind === 'city' ? 'cities' : 'sites'],
+  point.startYear <= year && point.endYear >= year && layers[pointLayerKey(point)],
 )
 
 export const routesForYear = (year: number, layers: LayerVisibility) => historicalRoutes.filter((route) =>
-  route.startYear <= year && route.endYear >= year && layers[route.kind === 'trade' ? 'trade' : route.kind === 'migration' ? 'migrations' : 'expeditions'],
+  route.startYear <= year && route.endYear >= year && layers[routeLayerKey(route)],
 )

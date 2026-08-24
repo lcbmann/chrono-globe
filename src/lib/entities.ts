@@ -1,5 +1,5 @@
 import type { EntitySummary, HistoricalFeature } from '../types'
-import { civilizationProfiles } from '../data/civilizations'
+import { getCivilizationProfile } from '../data/civilizations'
 
 const palette = [
   '#e8a34a', '#4fb3a5', '#cf6d62', '#8b82d8', '#d0b64d', '#5d96cf',
@@ -10,7 +10,7 @@ export const entityKey = (feature: HistoricalFeature) =>
   feature.properties.SUBJECTO || feature.properties.PARTOF || feature.properties.NAME || 'Unknown'
 
 export const entityColor = (key: string) => {
-  const profile = civilizationProfiles.find((item) => item.names.some((name) => name.toLowerCase() === key.toLowerCase()))
+  const profile = getCivilizationProfile(key)
   if (profile) return profile.color
   let hash = 2166136261
   for (let index = 0; index < key.length; index += 1) {

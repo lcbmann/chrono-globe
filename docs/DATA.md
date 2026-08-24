@@ -30,7 +30,7 @@ The index also contains a generated `entities` catalog. Each entry records the p
 | `CONTROL` | Controlling power, when distinct |
 | `BORDERPRECISION` | `1` approximate, `2` moderately precise, `3` legally documented |
 
-The upstream files contain both `Polygon` and `MultiPolygon` geometries. Empty names are excluded from the interactive territory index but their source geometry is preserved.
+The upstream files contain both `Polygon` and `MultiPolygon` geometries. Local runtime snapshots retain only features with usable names because unnamed geometry cannot be identified or explained by the interface and was already discarded before rendering. Coordinates are rounded to five decimal places—far more spatial precision than these approximate historical reconstructions claim—without polygon simplification.
 
 The political identity is resolved as `SUBJECTO`, then `PARTOF`, then `NAME`. This distinction is important: a region such as the Bosporan Kingdom may be represented as subject to the Roman Empire. Its polygon metadata retains the regional name, while selection and education surfaces consistently identify the grouped polity as the Roman Empire.
 
@@ -44,11 +44,15 @@ npm run data:validate
 npm run check
 ```
 
-The sync script downloads the upstream index and every referenced GeoJSON file, converts legacy Windows-1252 text to UTF-8 when necessary, trims property values, copies the Natural Earth land topology, and records the upstream commit SHA.
+The sync script resolves and pins one upstream commit before downloading the index and every referenced GeoJSON file, so one refresh cannot mix revisions. It converts legacy Windows-1252 text to UTF-8 when necessary, trims and explicitly repairs known damaged property values, removes unusable unnamed features, copies the Natural Earth land topology, and records the pinned commit SHA.
+
+Entity chronology and spherical-area metadata are calculated from the cleaned full-precision geometry. Coordinate rounding happens only afterward, immediately before the smaller runtime snapshots are written.
 
 Review the resulting diff before committing. A source update can change names, geometry, counts, or the set of available years.
 
-`data:validate` checks all 53 GeoJSON files against the generated index, then verifies curated profile aliases, event and story references, optional-layer records, duplicate identifiers, and source URL syntax. It intentionally does not make network requests, so CI remains deterministic.
+`data:validate` checks all 53 GeoJSON files against the generated index, requires the expected source and license plus an immutable source commit, and rejects unusable geometry or excess runtime precision. It independently recomputes each snapshot's feature and unique-name counts, then reconstructs every canonical entity's chronology and alias set from the map files and requires the generated catalog to match exactly. It also checks curated profile aliases, event and story entity references, optional-layer records, duplicate identifiers, and HTTPS source URLs.
+
+Vitest adds semantic checks for curated events, places, routes, stories, profiles, and freely licensed media: valid date ranges and coordinates, exact story-to-event years, complete educational copy, unique identifiers and aliases, and attribution metadata. Both checks are offline and deterministic, so CI does not depend on source-site availability.
 
 ## Civilization media
 
@@ -82,7 +86,7 @@ For a new reconstruction:
 2. Normalize its properties to the schema above and retain its provenance.
 3. Add the file to `public/data/maps` and its date to `public/data/index.json`.
 4. Rebuild the entity catalog and area metadata using the sync workflow.
-5. Run `npm run data:validate` and visually compare both adjacent transitions.
+5. Run `npm run data:validate` and visually compare both adjacent snapshots.
 
 High-change periods such as 334–323 BCE, 1206–1279 CE, 1492–1700 CE, 1914–1945 CE, and postwar decolonization are the most valuable targets for additional maps—but only when a defensible reconstruction is available.
 
