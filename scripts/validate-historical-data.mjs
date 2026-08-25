@@ -1,5 +1,7 @@
 import { readFile, access } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { geoArea } from 'd3-geo'
+import { HEMISPHERE_AREA } from './historical-geometry.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 const read = (path) => readFile(resolve(root, path), 'utf8')
@@ -81,6 +83,29 @@ const inspectCoordinates = (coordinates, issues) => {
   for (const child of coordinates) inspectCoordinates(child, issues)
 }
 
+const positionsEqual = (left, right) => Array.isArray(left) && Array.isArray(right)
+  && left.length === right.length && left.every((coordinate, index) => coordinate === right[index])
+
+const inspectGeometry = (geometry, issues) => {
+  if (geometry?.type !== 'MultiPolygon' || !Array.isArray(geometry.coordinates) || geometry.coordinates.length === 0) {
+    issues.invalidShape += 1
+    return
+  }
+  for (const polygon of geometry.coordinates) {
+    const exterior = polygon?.[0]
+    const uniquePositions = Array.isArray(exterior)
+      ? new Set(exterior.slice(0, -1).map((position) => Array.isArray(position) ? position.join(',') : '')).size
+      : 0
+    if (!Array.isArray(exterior) || exterior.length < 4 || !positionsEqual(exterior[0], exterior.at(-1)) || uniquePositions < 3) {
+      issues.invalidShape += 1
+      continue
+    }
+    const area = geoArea({ type: 'Polygon', coordinates: polygon })
+    if (!Number.isFinite(area) || area <= 0) issues.degenerate += 1
+    else if (area > HEMISPHERE_AREA) issues.reversed += 1
+  }
+}
+
 const derivedEntities = new Map()
 for (const snapshot of maps) {
   const path = resolve(root, 'public/data', snapshot.filename)
@@ -95,9 +120,11 @@ for (const snapshot of maps) {
       const uniqueNames = new Set(usable.map((feature) => feature.properties.NAME)).size
       if (uniqueNames !== snapshot.entities) fail(`${snapshot.filename} contains ${uniqueNames} named entities; index records ${snapshot.entities}`)
       const coordinateIssues = { nonFinite: false, outOfBounds: false, excessPrecision: false }
+      const geometryIssues = { invalidShape: 0, degenerate: 0, reversed: 0 }
       const seenThisYear = new Set()
       for (const feature of usable) {
         inspectCoordinates(feature.geometry?.coordinates, coordinateIssues)
+        inspectGeometry(feature.geometry, geometryIssues)
         const properties = feature.properties
         const key = properties.SUBJECTO || properties.PARTOF || properties.NAME
         if (typeof key !== 'string' || key.length === 0) {
@@ -115,6 +142,9 @@ for (const snapshot of maps) {
       if (coordinateIssues.nonFinite) fail(`${snapshot.filename} contains non-finite coordinates`)
       if (coordinateIssues.outOfBounds) fail(`${snapshot.filename} contains coordinates outside longitude/latitude bounds`)
       if (coordinateIssues.excessPrecision) fail(`${snapshot.filename} contains coordinates beyond the five-decimal runtime precision`)
+      if (geometryIssues.invalidShape) fail(`${snapshot.filename} contains ${geometryIssues.invalidShape} malformed polygon(s)`)
+      if (geometryIssues.degenerate) fail(`${snapshot.filename} contains ${geometryIssues.degenerate} zero-area polygon(s)`)
+      if (geometryIssues.reversed) fail(`${snapshot.filename} contains ${geometryIssues.reversed} reversed polygon(s) covering more than a hemisphere`)
     }
   } catch (error) {
     fail(`Could not validate ${snapshot.filename}: ${error instanceof Error ? error.message : error}`)

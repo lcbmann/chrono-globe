@@ -2,6 +2,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { geoArea } from 'd3-geo'
+import { sanitizeHistoricalFeatures } from './historical-geometry.mjs'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const outputDirectory = join(root, 'public', 'data')
@@ -79,6 +80,7 @@ const sourceBase = `https://raw.githubusercontent.com/${sourceRepository}/${sour
 const sourceIndex = await downloadJson(`${sourceBase}/index.json`)
 const maps = []
 const entityHistory = new Map()
+const geometryStats = { removedFeatures: 0, removedPolygons: 0, rewoundPolygons: 0 }
 
 for (const [position, item] of sourceIndex.years.entries()) {
   const map = await downloadJson(`${sourceBase}/geojson/${item.filename}`)
@@ -91,8 +93,15 @@ for (const [position, item] of sourceIndex.years.entries()) {
   }
 
   // Unnamed geometries cannot be identified or explained by the interface.
-  // Removing them avoids shipping work that the renderer immediately discards.
+  // Round the browser payload before geometry repair so fragments collapsed by
+  // payload precision do not survive into metadata or the rendered globe.
   map.features = map.features.filter((feature) => feature.properties?.NAME && feature.properties.NAME !== '?')
+  for (const feature of map.features) {
+    if (feature.geometry?.coordinates) feature.geometry.coordinates = roundCoordinates(feature.geometry.coordinates)
+  }
+  const sanitized = sanitizeHistoricalFeatures(map.features)
+  map.features = sanitized.features
+  for (const key of Object.keys(geometryStats)) geometryStats[key] += sanitized.stats[key]
 
   const filename = `${item.year}.geojson`
   const namedFeatures = map.features
@@ -122,12 +131,6 @@ for (const [position, item] of sourceIndex.years.entries()) {
     features: namedFeatures.length,
   })
 
-  // Preserve full precision for historical area/index calculations above, then
-  // trim only the browser payload. Five decimal places is finer than this
-  // dataset's source certainty while materially reducing download and parse cost.
-  for (const feature of namedFeatures) {
-    if (feature.geometry?.coordinates) feature.geometry.coordinates = roundCoordinates(feature.geometry.coordinates)
-  }
   await writeFile(join(mapDirectory, filename), `${JSON.stringify(map)}\n`, 'utf8')
 
   process.stdout.write(`\rSynced ${position + 1}/${sourceIndex.years.length} historical maps`)
@@ -167,4 +170,6 @@ if (!readme.includes('Historical Basemaps')) {
   throw new Error('README must retain Historical Basemaps attribution before data can be synced.')
 }
 
-process.stdout.write(`\nDone. ${maps.length} local snapshots are ready.\n`)
+process.stdout.write(
+  `\nDone. ${maps.length} local snapshots are ready; repaired ${geometryStats.rewoundPolygons} reversed polygons, removed ${geometryStats.removedPolygons} degenerate polygons, and removed ${geometryStats.removedFeatures} empty features.\n`,
+)
