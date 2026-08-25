@@ -17,13 +17,15 @@ import { useSoundscape } from './hooks/useSoundscape'
 import { buildChangeSet } from './lib/changes'
 import { entityKey, groupEntities } from './lib/entities'
 import { introductionVersion, shouldOfferIntroduction } from './lib/introduction'
-import { buildPlaybackYears, buildTimelineYears, findNearestYearIndex, formatYear, getEraLabel, getSnapshotTransition } from './lib/time'
+import { buildPlaybackYears, buildTimelineYears, findNearestYearIndex, formatYear, getEraLabel, getPlaybackDelay, getSnapshotTransition, type PlaybackRate } from './lib/time'
 import { parseAtlasUrl, serializeAtlasUrl } from './lib/urlState'
 import { defaultGlobeViewpoint } from './lib/viewpoint'
 import type { ChangeSet, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute, Snapshot } from './types'
 import './App.css'
 
 type GlobeMode = 'atlas' | 'earth'
+type MapSide = 'primary' | 'comparison'
+interface FocusRequest { id: number; side: MapSide; frameId?: string }
 const GlobeView = lazy(() => import('./components/GlobeView').then((module) => ({ default: module.GlobeView })))
 const emptyChangeSet: ChangeSet = { items: [], counts: { appeared: 0, disappeared: 0, expanded: 0, contracted: 0, control: 0, stable: 0 } }
 const featuredEventYears = historicalEvents.map((event) => event.year)
@@ -40,6 +42,8 @@ const initialStoryStep = initialStory?.steps[initialStoryStepIndex]
 const initialStoryEvent = historicalEvents.find((event) => event.id === (initialUrl.event || initialStoryStep?.eventId))
 const initialPoint = initialStoryEvent ? undefined : historicalPoints.find((point) => point.id === initialUrl.point)
 const initialRoute = initialStoryEvent || initialPoint ? undefined : historicalRoutes.find((route) => route.id === initialUrl.route)
+const initialHasFocusTarget = Boolean(initialUrl.entity || initialStoryStep?.entity || initialStoryEvent || initialPoint)
+const initialFocusSide: MapSide = initialUrl.compareYear !== undefined && initialUrl.side === 'comparison' ? 'comparison' : 'primary'
 const initialLayers = layersForDeepLink(initialUrl.layers, initialPoint, initialRoute)
 const initialIntroductionEligible = (() => {
   try {
@@ -86,6 +90,7 @@ function App() {
   const [selectedRoute, setSelectedRoute] = useState<HistoricalRoute | null>(initialRoute || null)
   const [query, setQuery] = useState('')
   const [playing, setPlaying] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState<PlaybackRate>(1)
   const [watchingEntity, setWatchingEntity] = useState<string | null>(null)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [introductionOpen, setIntroductionOpen] = useState(false)
@@ -109,11 +114,20 @@ function App() {
   const [globeMode, setGlobeMode] = useState<GlobeMode>(initialUrl.mode || 'atlas')
   const [mobileExplorerOpen, setMobileExplorerOpen] = useState(Boolean(initialUrl.entity || initialUrl.event || initialUrl.point || initialUrl.route))
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false)
-  const [activeMapSide, setActiveMapSide] = useState<'primary' | 'comparison'>(initialUrl.compareYear !== undefined && initialUrl.side === 'comparison' ? 'comparison' : 'primary')
+  const [activeMapSide, setActiveMapSide] = useState<MapSide>(initialFocusSide)
+  const focusSequenceRef = useRef(initialHasFocusTarget ? 1 : 0)
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(initialHasFocusTarget ? { id: 1, side: initialFocusSide } : null)
   const [mobileLayout, setMobileLayout] = useState(() => window.matchMedia(compactLayoutMedia).matches)
   const aboutDialogRef = useDialogFocus<HTMLElement>(aboutOpen, () => setAboutOpen(false))
   const mobileToolsDialogRef = useDialogFocus<HTMLDivElement>(mobileLayout && mobileToolsOpen, () => setMobileToolsOpen(false))
   const comparisonYearDialogRef = useDialogFocus<HTMLDivElement>(mobileLayout && mobileCompareEditorOpen, () => setMobileCompareEditorOpen(false))
+  const requestFocus = useCallback((side: MapSide, frameId?: string) => {
+    focusSequenceRef.current += 1
+    setFocusRequest({ id: focusSequenceRef.current, side, frameId })
+  }, [])
+  const consumeFocusRequest = useCallback((id: number) => {
+    setFocusRequest((current) => current?.id === id ? null : current)
+  }, [])
   const queueViewpointChange = useCallback((nextViewpoint: GlobeViewpoint) => {
     latestViewpointRef.current = nextViewpoint
     if (viewpointTimerRef.current !== null) window.clearTimeout(viewpointTimerRef.current)
@@ -144,12 +158,18 @@ function App() {
     const nextViewpoint = currentViewpoint || comparisonViewpointRef.current
     if (nextViewpoint) queueViewpointChange(nextViewpoint)
   }, [queueViewpointChange])
-  const activateMapSide = useCallback((side: 'primary' | 'comparison') => {
+  const activateMapSide = useCallback((side: MapSide) => {
     if (side === 'comparison') activateComparisonMap()
     else activatePrimaryMap()
   }, [activateComparisonMap, activatePrimaryMap])
   const { soundEnabled, toggleSound, chime } = useSoundscape()
   const snapshots = useMemo(() => index?.maps || [], [index])
+  const frameIdForYear = useCallback((year: number) => {
+    const nextTransition = getSnapshotTransition(snapshots, year)
+    const current = snapshots[nextTransition.currentIndex]
+    const next = snapshots[nextTransition.nextIndex]
+    return (nextTransition.progress >= .5 && next && next !== current ? next : current)?.filename
+  }, [snapshots])
   const snapshotYears = useMemo(() => snapshots.map((item) => item.year), [snapshots])
   const timelineYears = useMemo(() => buildTimelineYears(snapshots, historicalEvents.map((event) => event.year)), [snapshots])
   const playbackYears = useMemo(() => buildPlaybackYears(snapshots, historicalEvents.map((event) => event.year)), [snapshots])
@@ -289,14 +309,14 @@ function App() {
         return
       }
       setSelectedIndex(findNearestYearIndex(timelineYears, nextYear))
-    }, watchedEntity ? 3000 : 2600)
+    }, getPlaybackDelay(playbackRate, Boolean(watchedEntity)))
     return () => window.clearTimeout(timer)
-  }, [playbackFrameReady, playbackYears, playing, selectedYear, timelineYears, watchedEntity])
+  }, [playbackFrameReady, playbackRate, playbackYears, playing, selectedYear, timelineYears, watchedEntity])
 
   useEffect(() => {
     if (!playing || selectedYear === undefined || !playbackFrameReady) return
     const targets = watchedEntity?.years || playbackYears
-    const upcomingYears = targets.filter((year) => year > selectedYear).slice(0, 2)
+    const upcomingYears = targets.filter((year) => year > selectedYear).slice(0, playbackRate > 1 ? 4 : 2)
     const queued = new Set<string>()
     upcomingYears.forEach((year) => {
       const nextTransition = getSnapshotTransition(snapshots, year)
@@ -308,7 +328,7 @@ function App() {
         void prefetchHistoricalMap(target)
       }
     })
-  }, [playbackFrameReady, playbackYears, playing, selectedYear, snapshots, watchedEntity])
+  }, [playbackFrameReady, playbackRate, playbackYears, playing, selectedYear, snapshots, watchedEntity])
 
   useEffect(() => {
     const pauseWhenHidden = () => {
@@ -424,6 +444,7 @@ function App() {
 
   const jumpToEntity = (entity: HistoricalEntityIndex) => {
     activatePrimaryMap()
+    requestFocus('primary', frameIdForYear(entity.peakYear))
     setSelectedIndex(findNearestYearIndex(timelineYears, entity.peakYear))
     setSelectedKey(entity.key)
     setSelectedEvent(null)
@@ -436,6 +457,7 @@ function App() {
   }
 
   const clearSelection = useCallback(() => {
+    setFocusRequest(null)
     setSelectedKey(null)
     setSelectedEvent(null)
     setSelectedPoint(null)
@@ -443,8 +465,9 @@ function App() {
     interruptPlayback()
   }, [interruptPlayback])
 
-  const selectEvent = useCallback((event: HistoricalEvent, side: 'primary' | 'comparison' = 'primary') => {
+  const selectEvent = useCallback((event: HistoricalEvent, side: MapSide = 'primary') => {
     activateMapSide(side)
+    requestFocus(side, side === 'comparison' ? comparisonFrame?.filename : renderFrame?.filename)
     setSelectedEvent(event)
     setSelectedKey(event.entity || null)
     setSelectedPoint(null)
@@ -453,10 +476,11 @@ function App() {
     interruptPlayback()
     setMobileExplorerOpen(true)
     chime(659.25)
-  }, [activateMapSide, chime, interruptPlayback])
+  }, [activateMapSide, chime, comparisonFrame?.filename, interruptPlayback, renderFrame?.filename, requestFocus])
 
-  const selectPoint = useCallback((point: HistoricalPoint, side: 'primary' | 'comparison' = 'primary') => {
+  const selectPoint = useCallback((point: HistoricalPoint, side: MapSide = 'primary') => {
     activateMapSide(side)
+    requestFocus(side, side === 'comparison' ? comparisonFrame?.filename : renderFrame?.filename)
     setSelectedPoint(point)
     setSelectedKey(point.entity || null)
     setSelectedEvent(null)
@@ -465,9 +489,9 @@ function App() {
     interruptPlayback()
     setMobileExplorerOpen(true)
     chime(554.37)
-  }, [activateMapSide, chime, interruptPlayback])
+  }, [activateMapSide, chime, comparisonFrame?.filename, interruptPlayback, renderFrame?.filename, requestFocus])
 
-  const selectRoute = useCallback((route: HistoricalRoute, side: 'primary' | 'comparison' = 'primary') => {
+  const selectRoute = useCallback((route: HistoricalRoute, side: MapSide = 'primary') => {
     activateMapSide(side)
     setSelectedRoute(route)
     setSelectedPoint(null)
@@ -479,8 +503,9 @@ function App() {
     chime(392)
   }, [activateMapSide, chime, interruptPlayback])
 
-  const selectEntityKey = useCallback((key: string, side: 'primary' | 'comparison' = 'primary') => {
+  const selectEntityKey = useCallback((key: string, side: MapSide = 'primary') => {
     activateMapSide(side)
+    requestFocus(side, side === 'comparison' ? comparisonFrame?.filename : renderFrame?.filename)
     interruptPlayback()
     setSelectedKey(key)
     setSelectedEvent(null)
@@ -489,7 +514,7 @@ function App() {
     setActiveStoryId(null)
     setMobileExplorerOpen(true)
     chime(440)
-  }, [activateMapSide, chime, interruptPlayback])
+  }, [activateMapSide, chime, comparisonFrame?.filename, interruptPlayback, renderFrame?.filename, requestFocus])
 
   const selectPrimaryFeature = useCallback((feature: HistoricalFeature) => selectEntityKey(entityKey(feature), 'primary'), [selectEntityKey])
   const selectComparisonFeature = useCallback((feature: HistoricalFeature) => selectEntityKey(entityKey(feature), 'comparison'), [selectEntityKey])
@@ -506,6 +531,7 @@ function App() {
     if (!story || !step) return
     activatePrimaryMap()
     const event = historicalEvents.find((item) => item.id === step.eventId) || null
+    requestFocus('primary', frameIdForYear(step.year))
     setActiveStoryId(story.id)
     setStoryStep(nextStep)
     setSelectedIndex(findNearestYearIndex(timelineYears, step.year))
@@ -523,10 +549,10 @@ function App() {
       setPlaying(false)
       return
     }
-    if (watchingEntity !== entity.key || selectedYear === undefined || selectedYear >= entity.lastYear) {
-      setSelectedIndex(findNearestYearIndex(timelineYears, entity.firstYear))
-    }
+    const restart = watchingEntity !== entity.key || selectedYear === undefined || selectedYear >= entity.lastYear
+    if (restart) setSelectedIndex(findNearestYearIndex(timelineYears, entity.firstYear))
     activatePrimaryMap()
+    requestFocus('primary', frameIdForYear(restart ? entity.firstYear : selectedYear as number))
     setSelectedKey(entity.key)
     setSelectedEvent(null)
     setSelectedPoint(null)
@@ -711,7 +737,8 @@ function App() {
             <GlobeErrorBoundary label="The historical globe"><Suspense fallback={<div className="globe-loading"><LoaderCircle size={18} className="spin" /> Preparing the globe</div>}><GlobeView
               features={displayFeatures}
               active={!mobileLayout || !mobileExplorerOpen}
-              focusSelection={activeMapSide === 'primary'}
+              focusRequest={focusRequest?.side === 'primary' ? focusRequest : null}
+              onFocusRequestHandled={consumeFocusRequest}
               frameId={renderFrame?.filename}
               onFrameReady={setRenderedFrameId}
               selectedKey={selectedKey}
@@ -774,7 +801,9 @@ function App() {
               <GlobeErrorBoundary label="The comparison globe"><Suspense fallback={<div className="globe-loading"><LoaderCircle size={18} className="spin" /> Preparing comparison</div>}><GlobeView
                 features={comparisonDisplayFeatures}
                 active={!mobileLayout || !mobileExplorerOpen}
-                focusSelection={activeMapSide === 'comparison'}
+                frameId={comparisonFrame?.filename}
+                focusRequest={focusRequest?.side === 'comparison' ? focusRequest : null}
+                onFocusRequestHandled={consumeFocusRequest}
                 selectedKey={selectedKey}
                 events={comparisonEvents}
                 points={comparisonPoints}
@@ -851,9 +880,11 @@ function App() {
         featuredYears={featuredEventYears}
         selectedIndex={selectedIndex}
         playing={playing}
+        playbackRate={playbackRate}
         waiting={playing && !playbackFrameReady}
         watching={watchedEntity ? { name: watchedEntity.name, firstYear: watchedEntity.firstYear, lastYear: watchedEntity.lastYear } : null}
         onSelectedIndexChange={selectYearIndex}
+        onPlaybackRateChange={setPlaybackRate}
         onPlayingChange={(nextPlaying) => {
           if (nextPlaying) {
             activatePrimaryMap()
@@ -892,7 +923,7 @@ function App() {
             <div className="eyebrow">About Chrono Globe</div>
             <h2 id="about-title" tabIndex={-1} data-dialog-focus>History has fuzzy edges.</h2>
             <p>The timeline combines regular steps with exact source dates and featured moments. Between mapped reconstructions, Chrono Globe holds the nearest sourced frame until the next complete map is ready.</p>
-            <p>Playback advances through meaningful mapped and featured years, and never invents an in-between border.</p>
+            <p>Timelapse advances through complete mapped and featured frames. Its cross-fade is for orientation and never invents an in-between border.</p>
             <p>Ancient borders often represented influence, settlement, or tribute rather than surveyed lines. Use this as an educational starting point, not a definitive source for legal, academic, or territorial claims.</p>
             <p>City, site, migration, trade, and expedition layers are selective teaching aids. Route lines join representative waypoints and do not claim to show every branch or an exact path.</p>
             <div className="confidence-legend">

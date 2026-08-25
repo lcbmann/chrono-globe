@@ -29,7 +29,7 @@ const compactRendererMedia = '(max-width: 680px), (max-width: 900px) and (max-he
 interface GlobeViewProps {
   features: HistoricalFeature[]
   active?: boolean
-  focusSelection?: boolean
+  focusRequest?: { id: number; frameId?: string } | null
   frameId?: string
   history: HistoricalEntityIndex[]
   selectedKey: string | null
@@ -45,6 +45,7 @@ interface GlobeViewProps {
   initialViewRef?: RefObject<GlobeViewpoint>
   onViewChange?: (view: GlobeViewpoint) => void
   onActivate?: (view: GlobeViewpoint) => void
+  onFocusRequestHandled?: (id: number) => void
   onFrameReady?: (frameId: string) => void
   onSelect: (feature: HistoricalFeature) => void
   onEventSelect: (event: HistoricalEvent) => void
@@ -133,21 +134,29 @@ const renderHtmlLabel = (object: object) => {
 }
 
 function GlobeViewComponent({
-  features, active = true, focusSelection = true, frameId, history, selectedKey, events, points = [], routes = [], selectedEvent,
+  features, active = true, focusRequest = null, frameId, history, selectedKey, events, points = [], routes = [], selectedEvent,
   selectedPoint = null, selectedRoute = null, mode, showChanges = false, changeKinds, initialViewRef, onViewChange,
-  onActivate, onFrameReady, onSelect, onEventSelect, onPointSelect, onRouteSelect, onClearSelection,
+  onActivate, onFocusRequestHandled, onFrameReady, onSelect, onEventSelect, onPointSelect, onRouteSelect, onClearSelection,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const transitionCanvasRef = useRef<HTMLCanvasElement>(null)
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
   const mountedRef = useRef(false)
   const readyRequestedRef = useRef(false)
   const readyInitializedRef = useRef(false)
   const readyFrameRef = useRef<number | null>(null)
+  const handledFocusRequestRef = useRef(0)
+  const visibleFrameRef = useRef(frameId)
+  const visualFeaturesRef = useRef(features)
+  const transitionFrameRef = useRef<number | null>(null)
+  const transitionTimerRef = useRef<number | null>(null)
   const activeRef = useRef(active)
   activeRef.current = active
   const [size, setSize] = useState({ width: 900, height: 700 })
   const [land, setLand] = useState<LandFeature[]>([])
   const [ready, setReady] = useState(false)
+  const [visualFeatures, setVisualFeatures] = useState(features)
+  const [visibleFrameId, setVisibleFrameId] = useState(frameId)
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   const scheduleReady = useCallback(() => {
     if (readyInitializedRef.current || readyFrameRef.current !== null) return
@@ -172,10 +181,8 @@ function GlobeViewComponent({
 
   const globeMaterial = useMemo(() => new MeshPhongMaterial(mode === 'earth' ? {
     color: new Color('#ffffff'),
-    emissive: new Color('#56666c'),
-    emissiveIntensity: .18,
-    shininess: 5,
-    specular: new Color('#a7d3df'),
+    shininess: 32,
+    specular: new Color('#182a31'),
   } : {
     color: new Color('#071a23'), emissive: new Color('#031017'), emissiveIntensity: .38, shininess: 18, specular: new Color('#2b7888'),
   }), [mode])
@@ -204,6 +211,77 @@ function GlobeViewComponent({
     return () => preference.removeEventListener('change', updatePreference)
   }, [])
 
+  const clearFrameTransition = useCallback((immediate = true) => {
+    if (transitionFrameRef.current !== null) {
+      window.cancelAnimationFrame(transitionFrameRef.current)
+      transitionFrameRef.current = null
+    }
+    if (transitionTimerRef.current !== null) {
+      window.clearTimeout(transitionTimerRef.current)
+      transitionTimerRef.current = null
+    }
+    const overlay = transitionCanvasRef.current
+    if (!overlay) return
+    if (immediate) overlay.style.transition = 'none'
+    overlay.style.opacity = '0'
+    overlay.getContext('2d')?.clearRect(0, 0, overlay.width, overlay.height)
+    if (immediate) {
+      void overlay.offsetWidth
+      overlay.style.removeProperty('transition')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (visibleFrameRef.current === frameId) {
+      visualFeaturesRef.current = features
+      setVisualFeatures(features)
+      return
+    }
+
+    if (reducedMotion || visualFeaturesRef.current.length === 0 || !visibleFrameRef.current) {
+      clearFrameTransition()
+      visibleFrameRef.current = frameId
+      visualFeaturesRef.current = features
+      setVisualFeatures(features)
+      setVisibleFrameId(frameId)
+      return
+    }
+
+    clearFrameTransition()
+    const globe = globeRef.current
+    const overlay = transitionCanvasRef.current
+    const source = globe?.renderer().domElement
+    const context = overlay?.getContext('2d')
+    if (globe && overlay && source && context) {
+      try {
+        globe.renderer().render(globe.scene(), globe.camera())
+        overlay.width = source.width
+        overlay.height = source.height
+        context.drawImage(source, 0, 0, overlay.width, overlay.height)
+        overlay.style.transition = 'none'
+        overlay.style.opacity = '1'
+        void overlay.offsetWidth
+        overlay.style.removeProperty('transition')
+      } catch {
+        clearFrameTransition()
+      }
+    }
+
+    visibleFrameRef.current = frameId
+    visualFeaturesRef.current = features
+    setVisualFeatures(features)
+    setVisibleFrameId(frameId)
+    transitionFrameRef.current = window.requestAnimationFrame(() => {
+      transitionFrameRef.current = window.requestAnimationFrame(() => {
+        if (overlay) overlay.style.opacity = '0'
+        transitionFrameRef.current = null
+        transitionTimerRef.current = window.setTimeout(() => clearFrameTransition(false), 720)
+      })
+    })
+
+    return () => clearFrameTransition()
+  }, [clearFrameTransition, features, frameId, reducedMotion])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -229,7 +307,7 @@ function GlobeViewComponent({
     return () => { active = false }
   }, [])
 
-  const selectedFeatures = useMemo(() => features.filter((item) => entityKey(item) === selectedKey), [features, selectedKey])
+  const selectedFeatures = useMemo(() => visualFeatures.filter((item) => entityKey(item) === selectedKey), [selectedKey, visualFeatures])
   const selectedCenter = useMemo(() => {
     if (selectedFeatures.length === 0) return null
     const collection: FeatureCollection = { type: 'FeatureCollection', features: selectedFeatures }
@@ -238,17 +316,21 @@ function GlobeViewComponent({
   }, [selectedFeatures])
 
   useEffect(() => {
-    if (!ready || !focusSelection) return
+    if (!ready || visibleFrameId !== frameId || !focusRequest || handledFocusRequestRef.current === focusRequest.id) return
+    if (focusRequest.frameId && visibleFrameId !== focusRequest.frameId) return
     const focus = selectedEvent || selectedPoint || selectedCenter
-    if (focus) globeRef.current?.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.65 }, reducedMotion ? 0 : 900)
-  }, [focusSelection, ready, reducedMotion, selectedCenter, selectedEvent, selectedPoint])
+    if (!focus) return
+    handledFocusRequestRef.current = focusRequest.id
+    globeRef.current?.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.65 }, reducedMotion ? 0 : 900)
+    onFocusRequestHandled?.(focusRequest.id)
+  }, [focusRequest, frameId, onFocusRequestHandled, ready, reducedMotion, selectedCenter, selectedEvent, selectedPoint, visibleFrameId])
 
   useEffect(() => {
     if (!ready) return
     const globe = globeRef.current
     if (!globe) return
-    const ambient = new AmbientLight(mode === 'earth' ? '#ffffff' : '#9bc1c8', mode === 'earth' ? 3.4 : 1.35)
-    const directional = new DirectionalLight(mode === 'earth' ? '#fff8e8' : '#fff0ce', mode === 'earth' ? 2.6 : 2.8)
+    const ambient = new AmbientLight(mode === 'earth' ? '#c4d0d2' : '#9bc1c8', mode === 'earth' ? 1.25 : 1.35)
+    const directional = new DirectionalLight('#fff0ce', mode === 'earth' ? 1.55 : 2.8)
     directional.position.set(-180, 120, 160)
     globe.lights([ambient, directional])
   }, [mode, ready])
@@ -265,7 +347,7 @@ function GlobeViewComponent({
   }, [active, ready])
 
   useEffect(() => {
-    if (!ready || !frameId || !onFrameReady) return
+    if (!ready || !frameId || visibleFrameId !== frameId || !onFrameReady) return
     let secondFrame = 0
     const firstFrame = window.requestAnimationFrame(() => {
       secondFrame = window.requestAnimationFrame(() => onFrameReady(frameId))
@@ -274,12 +356,12 @@ function GlobeViewComponent({
       window.cancelAnimationFrame(firstFrame)
       if (secondFrame) window.cancelAnimationFrame(secondFrame)
     }
-  }, [features, frameId, onFrameReady, ready])
+  }, [frameId, onFrameReady, ready, visibleFrameId, visualFeatures])
 
-  const orderedFeatures = useMemo(() => [...features].sort((left, right) => {
+  const orderedFeatures = useMemo(() => [...visualFeatures].sort((left, right) => {
     const keyOrder = entityKey(left).localeCompare(entityKey(right))
     return keyOrder || (left.properties.NAME || '').localeCompare(right.properties.NAME || '')
-  }), [features])
+  }), [visualFeatures])
   const polygons = useMemo<RenderPolygon[]>(() => mode === 'atlas' ? [...land, ...orderedFeatures] : orderedFeatures, [land, mode, orderedFeatures])
   const historyByKey = useMemo(() => new Map(history.map((item) => [item.key, item])), [history])
   const globePoints = useMemo<GlobePoint[]>(() => [
@@ -397,12 +479,14 @@ function GlobeViewComponent({
   const handleArcClick = useCallback((object: object) => onRouteSelect?.((object as RouteSegment).route), [onRouteSelect])
 
   const handleActivate = useCallback(() => {
+    clearFrameTransition()
     const currentView = globeRef.current?.pointOfView()
     if (currentView) onActivate?.(currentView)
-  }, [onActivate])
+  }, [clearFrameTransition, onActivate])
   const handleZoom = useCallback((nextView: GlobeViewpoint) => {
+    clearFrameTransition()
     if (active && mountedRef.current) onViewChange?.(nextView)
-  }, [active, onViewChange])
+  }, [active, clearFrameTransition, onViewChange])
 
   return (
     <div ref={containerRef} className="globe-stage" role="region" tabIndex={0} data-dialog-return onPointerDown={handleActivate} aria-label="Interactive historical globe. Drag to rotate, or use Explore history to browse territories with a keyboard.">
@@ -417,8 +501,8 @@ function GlobeViewComponent({
         bumpImageUrl={mode === 'earth' ? `${import.meta.env.BASE_URL}textures/earth-topology.png` : undefined}
         showGraticules={mode === 'atlas'}
         showAtmosphere
-        atmosphereColor={mode === 'earth' ? '#a9ddfa' : '#65bfd0'}
-        atmosphereAltitude={.15}
+        atmosphereColor={mode === 'earth' ? '#68afd0' : '#65bfd0'}
+        atmosphereAltitude={mode === 'earth' ? .11 : .15}
         polygonsData={polygons}
         polygonGeoJsonGeometry={polygonGeometry}
         polygonAltitude={polygonAltitude}
@@ -466,6 +550,7 @@ function GlobeViewComponent({
         onGlobeReady={handleReady}
         onZoom={handleZoom}
       />
+      <canvas ref={transitionCanvasRef} className="globe-frame-transition" aria-hidden="true" />
       <div className="drag-hint" aria-hidden="true"><span className="mouse-glyph" /> Drag to rotate · Scroll to zoom</div>
     </div>
   )

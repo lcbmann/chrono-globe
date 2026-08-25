@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { ChevronLeft, ChevronRight, LoaderCircle, Pause, Play, Square } from 'lucide-react'
-import { findNearestYearIndex, formatYear, parseYear } from '../lib/time'
+import { findNearestYearIndex, formatYear, parseYear, type PlaybackRate } from '../lib/time'
 
 interface WatchedRange {
   name: string
@@ -8,15 +8,19 @@ interface WatchedRange {
   lastYear: number
 }
 
+const playbackRates: PlaybackRate[] = [.5, 1, 2]
+
 interface TimelineProps {
   years: number[]
   sourceYears?: number[]
   featuredYears?: number[]
   selectedIndex: number
   playing: boolean
+  playbackRate?: PlaybackRate
   waiting?: boolean
   watching?: WatchedRange | null
   onSelectedIndexChange: (index: number) => void
+  onPlaybackRateChange?: (rate: PlaybackRate) => void
   onPlayingChange: (playing: boolean) => void
   onStopWatching?: () => void
 }
@@ -27,9 +31,11 @@ export function Timeline({
   featuredYears = [],
   selectedIndex,
   playing,
+  playbackRate = 1,
   waiting = false,
   watching = null,
   onSelectedIndexChange,
+  onPlaybackRateChange,
   onPlayingChange,
   onStopWatching,
 }: TimelineProps) {
@@ -67,7 +73,9 @@ export function Timeline({
   const watchingComplete = Boolean(watching && selected >= watching.lastYear)
   const playLabel = watching
     ? `${playing ? 'Pause' : watchingComplete ? 'Replay' : 'Resume'} ${watching.name} mapped history`
-    : `${playing ? 'Pause' : 'Play'} timeline`
+    : `${playing ? 'Pause' : 'Start'} fixed-view timelapse`
+  const nextPlaybackRate = playbackRates[(playbackRates.indexOf(playbackRate) + 1) % playbackRates.length]
+  const speedLabel = `Timelapse speed ${playbackRate}×. Change to ${nextPlaybackRate}×`
 
   return (
     <section className={`timeline ${watching ? 'watching-entity' : ''}`} aria-label="Historical timeline">
@@ -76,7 +84,7 @@ export function Timeline({
           <div className="entity-playback-copy">
             <span>Mapped history</span>
             <strong>{watching.name}</strong>
-            <small role="status" aria-live="polite">{waiting ? <><LoaderCircle size={11} className="spin" /> Loading the next complete map</> : playing ? 'Playing sourced snapshots' : selected >= watching.lastYear ? 'History complete' : 'Paused'}</small>
+            <small role="status" aria-live="polite">{waiting ? <><LoaderCircle size={11} className="spin" /> Loading the next complete map</> : playing ? `Playing sourced snapshots · ${playbackRate}×` : selected >= watching.lastYear ? 'History complete' : 'Paused'}</small>
           </div>
           <div className="entity-playback-progress">
             <div
@@ -113,6 +121,13 @@ export function Timeline({
         )}
         <button
           type="button"
+          className="playback-speed"
+          aria-label={speedLabel}
+          title={`${speedLabel}. The camera stays where you leave it.`}
+          onClick={() => onPlaybackRateChange?.(nextPlaybackRate)}
+        >{playbackRate}×</button>
+        <button
+          type="button"
           className="icon-button"
           disabled={selectedIndex === 0}
           aria-label="Previous timeline step"
@@ -140,7 +155,7 @@ export function Timeline({
           />
           <div className="range-labels" aria-hidden="true">
             <span>{formatYear(years[0])}</span>
-            <span>{sourceYears.length} source maps · {featuredYears.length} moments</span>
+            <span>{playing && !watching ? `Timelapse · view held · ${playbackRate}×` : `${sourceYears.length} source maps · ${featuredYears.length} moments`}</span>
             <span>{formatYear(years.at(-1) || 2010)}</span>
           </div>
         </div>

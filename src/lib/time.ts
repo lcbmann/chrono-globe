@@ -1,5 +1,7 @@
 import type { Snapshot } from '../types'
 
+export type PlaybackRate = .5 | 1 | 2
+
 export const formatYear = (year: number, long = false) => {
   if (year < 0) return `${Math.abs(year).toLocaleString()} ${long ? 'BCE' : 'BCE'}`
   if (year === 0) return '1 BCE'
@@ -58,6 +60,8 @@ export const buildPlaybackYears = (snapshots: Snapshot[], featuredYears: number[
     .filter((year) => year !== 0 && year >= start && year <= end)
     .sort((left, right) => left - right)
 }
+
+export const getPlaybackDelay = (rate: PlaybackRate, watchingEntity = false) => (watchingEntity ? 3000 : 2600) / rate
 
 export const getSnapshotTransition = (snapshots: Snapshot[], targetYear: number) => {
   const currentIndex = findSourceSnapshotIndex(snapshots, targetYear)

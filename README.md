@@ -8,7 +8,7 @@ This is a ground-up successor to a 2024 prototype that painted each historical s
 
 - Shows 53 worldwide source reconstructions from 123,000 BCE to 2010 CE on a readable, decade-scale historical cursor.
 - Starts at 323 BCE, preserving the original project's focus on Macedon and Alexander's empire.
-- Supports drag, zoom, click-to-inspect, alias-aware all-history civilization search, keyboard navigation, direct year entry, evidence markers on the timeline, and deliberately paced, complete-frame playback.
+- Supports drag, zoom, click-to-inspect, alias-aware all-history civilization search, keyboard navigation, direct year entry, evidence markers, and fixed-view timelapse playback at three speeds.
 - Offers new visitors a skippable four-step introduction, suppresses it for shared deep links, and keeps it replayable from About.
 - Displays all named territories in a reconstruction simultaneously.
 - Includes broad, globally distributed educational profiles, contextual facts, reading links, and geolocated historical-event markers, including a dedicated Pacific-worlds story and layer set.
@@ -54,7 +54,7 @@ The repository includes the synced data used by the deployed app. Run `npm run d
 
 ## How the timeline works
 
-Historical borders are not available for every individual year. The slider moves in decade steps from 1000 BCE onward (with wider steps in deep history) and also includes exact source dates and featured historical moments. Gold ticks distinguish sourced map reconstructions from blue featured-moment markers. Between two source reconstructions, Chrono Globe holds one complete sourced frame and swaps atomically when the next map is ready. Automatic playback advances through meaningful mapped and featured years, while manual navigation keeps the denser timeline available.
+Historical borders are not available for every individual year. The slider moves in decade steps from 1000 BCE onward (with wider steps in deep history) and also includes exact source dates and featured historical moments. Gold ticks distinguish sourced map reconstructions from blue featured-moment markers. Between two source reconstructions, Chrono Globe holds one complete sourced frame and cross-fades to the next complete frame when it is ready; interaction always targets one reconstruction rather than overlapping map geometry. Timelapse playback holds the camera where the visitor leaves it, offers 0.5×, 1×, and 2× pacing, and advances through meaningful mapped and featured years.
 
 At runtime the app:
 
