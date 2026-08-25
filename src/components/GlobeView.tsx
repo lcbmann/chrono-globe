@@ -8,6 +8,8 @@ import type { GeometryCollection, Topology } from 'topojson-specification'
 import { getCivilizationProfile } from '../data/civilizations'
 import { changeColors, changeLabels } from '../lib/changes'
 import { entityColor, entityKey, escapeHtml } from '../lib/entities'
+import { buildMarkerOffsets } from '../lib/markers'
+import { formatYear } from '../lib/time'
 import { defaultGlobeViewpoint } from '../lib/viewpoint'
 import type { ChangeKind, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute } from '../types'
 
@@ -15,15 +17,22 @@ interface LandProperties { __layer: 'land' }
 type LandFeature = Feature<Geometry, LandProperties>
 
 interface HtmlLabel {
-  kind: 'entity' | 'event' | 'point'
+  kind: 'entity' | 'event' | 'point' | 'marker'
   lat: number
   lng: number
   text: string
   color: string
-  year?: number
+  detail?: string
+  markerKind?: MarkerKind
+  selected?: boolean
+  tooltipBelow?: boolean
+  offsetX?: number
+  offsetY?: number
+  onSelect?: () => void
 }
 
 type RenderPolygon = LandFeature | HistoricalFeature
+type MarkerKind = 'event' | HistoricalPoint['kind']
 const compactRendererMedia = '(max-width: 680px), (max-width: 900px) and (max-height: 500px)'
 
 interface GlobeViewProps {
@@ -56,6 +65,25 @@ interface GlobeViewProps {
 
 type GlobePoint = ({ pointType: 'event' } & HistoricalEvent) | ({ pointType: 'place' } & HistoricalPoint)
 interface RouteSegment { route: HistoricalRoute; start: { lat: number; lng: number }; end: { lat: number; lng: number } }
+
+const markerColors: Record<MarkerKind, string> = {
+  event: '#e2b86c',
+  capital: '#e89a6b',
+  city: '#66bec7',
+  site: '#b39ad2',
+}
+const markerKindLabels: Record<MarkerKind, string> = {
+  event: 'Historical moment',
+  capital: 'Capital',
+  city: 'Historic city',
+  site: 'Historical site',
+}
+const globePointKey = (point: GlobePoint) => `${point.pointType}:${point.id}`
+const globePointKind = (point: GlobePoint): MarkerKind => point.pointType === 'event' ? 'event' : point.kind
+const globePointTitle = (point: GlobePoint) => point.pointType === 'event' ? point.title : point.name
+const globePointDetail = (point: GlobePoint) => point.pointType === 'event'
+  ? `${markerKindLabels.event} · ${formatYear(point.year)}`
+  : `${markerKindLabels[point.kind]} · from ${formatYear(point.startYear)}`
 
 const rgba = (hex: string, alpha: number) => {
   const value = hex.replace('#', '')
@@ -101,14 +129,6 @@ const loadLand = () => {
 const polygonGeometry = (object: object) => (
   historicalFeature(object as RenderPolygon)?.geometry || (object as LandFeature).geometry
 ) as never
-const pointTooltip = (object: object) => {
-  const point = object as GlobePoint
-  const title = point.pointType === 'event' ? point.title : point.name
-  const detail = point.pointType === 'event'
-    ? `${Math.abs(point.year)} ${point.year < 0 ? 'BCE' : 'CE'} · historical moment`
-    : `${point.kind} · ${Math.abs(point.startYear)} ${point.startYear < 0 ? 'BCE' : 'CE'}`
-  return `<div class="globe-tooltip event-tooltip"><strong>${escapeHtml(title)}</strong><span>${detail}</span></div>`
-}
 const arcStartLat = (object: object) => (object as RouteSegment).start.lat
 const arcStartLng = (object: object) => (object as RouteSegment).start.lng
 const arcEndLat = (object: object) => (object as RouteSegment).end.lat
@@ -117,19 +137,63 @@ const arcTooltip = (object: object) => {
   const route = (object as RouteSegment).route
   return `<div class="globe-tooltip"><strong>${escapeHtml(route.name)}</strong><span>${route.kind} route · schematic</span></div>`
 }
-const htmlAltitude = (object: object) => (object as HtmlLabel).kind === 'event' ? .105 : (object as HtmlLabel).kind === 'point' ? .075 : .04
+const htmlAltitude = (object: object) => {
+  const label = object as HtmlLabel
+  if (label.kind === 'marker') return .014
+  if (label.kind === 'event' || label.kind === 'point') return .024
+  return .04
+}
 const renderHtmlLabel = (object: object) => {
   const label = object as HtmlLabel
+  if (label.kind === 'marker') {
+    const anchor = document.createElement('div')
+    anchor.className = 'globe-poi-marker-anchor'
+    anchor.style.setProperty('--poi-color', label.color)
+    anchor.style.setProperty('--poi-offset-x', `${label.offsetX || 0}px`)
+    anchor.style.setProperty('--poi-offset-y', `${label.offsetY || 0}px`)
+    const element = document.createElement('button')
+    element.type = 'button'
+    element.className = `globe-poi-marker marker-${label.markerKind}${label.selected ? ' is-selected' : ''}${label.tooltipBelow ? ' tooltip-below' : ''}`
+    element.setAttribute('aria-label', `Open ${label.detail}: ${label.text}`)
+    element.addEventListener('pointerdown', (event) => event.stopPropagation())
+    element.addEventListener('click', (event) => {
+      event.stopPropagation()
+      label.onSelect?.()
+    })
+
+    const glyph = document.createElement('span')
+    glyph.className = 'globe-poi-glyph'
+    glyph.setAttribute('aria-hidden', 'true')
+    const tooltip = document.createElement('span')
+    tooltip.className = 'globe-poi-tooltip'
+    const title = document.createElement('strong')
+    title.textContent = label.text
+    const detail = document.createElement('small')
+    detail.textContent = label.detail || ''
+    tooltip.append(title, detail)
+    element.append(glyph, tooltip)
+    anchor.append(element)
+    return anchor
+  }
+
   const element = document.createElement('div')
   element.className = label.kind === 'event' ? 'globe-event-label' : label.kind === 'point' ? 'globe-point-label' : 'globe-entity-label'
-  element.style.setProperty('--entity-color', label.color)
   if (label.kind === 'event' || label.kind === 'point') {
+    const anchor = document.createElement('div')
+    anchor.className = 'globe-poi-callout-anchor'
+    anchor.style.setProperty('--poi-color', label.color)
+    anchor.style.setProperty('--poi-offset-x', `${label.offsetX || 0}px`)
+    anchor.style.setProperty('--poi-offset-y', `${label.offsetY || 0}px`)
     const marker = document.createElement('span')
-    marker.textContent = label.kind === 'event' ? 'Historical moment' : 'Historical place'
+    marker.textContent = label.detail || (label.kind === 'event' ? 'Historical moment' : 'Historical place')
     const title = document.createElement('strong')
     title.textContent = label.text
     element.append(marker, title)
-  } else element.textContent = label.text
+    anchor.append(element)
+    return anchor
+  }
+  element.style.setProperty('--entity-color', label.color)
+  element.textContent = label.text
   return element
 }
 
@@ -368,6 +432,33 @@ function GlobeViewComponent({
     ...events.map((event) => ({ ...event, pointType: 'event' as const })),
     ...points.map((point) => ({ ...point, pointType: 'place' as const })),
   ], [events, points])
+  const selectedMarkerKey = selectedEvent ? `event:${selectedEvent.id}` : selectedPoint ? `place:${selectedPoint.id}` : null
+  const selectedMarkerLocation = selectedEvent || selectedPoint
+  const markerOffsets = useMemo(() => buildMarkerOffsets(globePoints.map((point) => ({
+    key: globePointKey(point),
+    lat: point.lat,
+    lng: point.lng,
+  }))), [globePoints])
+  const markerLabels = useMemo<HtmlLabel[]>(() => globePoints.map((point) => {
+    const key = globePointKey(point)
+    const markerKind = globePointKind(point)
+    const offset = markerOffsets.get(key) || { x: 0, y: 0 }
+    return {
+      kind: 'marker',
+      markerKind,
+      lat: point.lat,
+      lng: point.lng,
+      text: globePointTitle(point),
+      detail: globePointDetail(point),
+      color: markerColors[markerKind],
+      selected: key === selectedMarkerKey,
+      tooltipBelow: Boolean(key !== selectedMarkerKey && selectedMarkerLocation
+        && point.lat === selectedMarkerLocation.lat && point.lng === selectedMarkerLocation.lng),
+      offsetX: offset.x,
+      offsetY: offset.y,
+      onSelect: point.pointType === 'event' ? () => onEventSelect(point) : () => onPointSelect?.(point),
+    }
+  }), [globePoints, markerOffsets, onEventSelect, onPointSelect, selectedMarkerKey, selectedMarkerLocation])
   const routeSegments = useMemo<RouteSegment[]>(() => routes.flatMap((route) => route.coordinates.slice(0, -1).map((start, index) => ({ route, start, end: route.coordinates[index + 1] }))), [routes])
   const prominence = useCallback((feature: HistoricalFeature) => {
     const key = entityKey(feature)
@@ -380,18 +471,30 @@ function GlobeViewComponent({
     return Math.max(.08, (.1 + extentScore * .4) * (cultural ? .48 : 1))
   }, [historyByKey, selectedKey])
   const htmlLabels = useMemo<HtmlLabel[]>(() => {
-    if (selectedEvent) return [{
-      kind: 'event', lat: selectedEvent.lat, lng: selectedEvent.lng, text: selectedEvent.title,
-      color: '#ffd27b', year: selectedEvent.year,
-    }]
-    if (selectedPoint) return [{ kind: 'point', lat: selectedPoint.lat, lng: selectedPoint.lng, text: selectedPoint.name, color: '#8fd1d5' }]
+    if (selectedEvent) {
+      const offset = markerOffsets.get(`event:${selectedEvent.id}`)
+      return [{
+        kind: 'event', lat: selectedEvent.lat, lng: selectedEvent.lng, text: selectedEvent.title,
+        detail: `${markerKindLabels.event} · ${formatYear(selectedEvent.year)}`,
+        color: markerColors.event, offsetX: offset?.x, offsetY: offset?.y,
+      }]
+    }
+    if (selectedPoint) {
+      const offset = markerOffsets.get(`place:${selectedPoint.id}`)
+      return [{
+        kind: 'point', lat: selectedPoint.lat, lng: selectedPoint.lng, text: selectedPoint.name,
+        detail: markerKindLabels[selectedPoint.kind], color: markerColors[selectedPoint.kind],
+        offsetX: offset?.x, offsetY: offset?.y,
+      }]
+    }
     if (!selectedKey || !selectedCenter) return []
     return [{
       kind: 'entity', ...selectedCenter,
       text: getCivilizationProfile(selectedKey)?.displayName || selectedKey,
       color: entityColor(selectedKey),
     }]
-  }, [selectedCenter, selectedEvent, selectedKey, selectedPoint])
+  }, [markerOffsets, selectedCenter, selectedEvent, selectedKey, selectedPoint])
+  const htmlElements = useMemo(() => [...markerLabels, ...htmlLabels], [htmlLabels, markerLabels])
 
   const handleReady = useCallback(() => {
     readyRequestedRef.current = true
@@ -452,20 +555,6 @@ function GlobeViewComponent({
     if (feature && !isLand(polygon)) onSelect(feature)
     else onClearSelection()
   }, [onClearSelection, onSelect])
-  const selectedMarkerId = selectedEvent?.id || selectedPoint?.id
-  const pointColor = useCallback((object: object) => {
-    const point = object as GlobePoint
-    if (point.pointType === 'event') return point.id === selectedEvent?.id ? '#fff4ca' : '#ffd27b'
-    if (point.id === selectedPoint?.id) return '#d9ffff'
-    return point.kind === 'capital' ? '#ef9d63' : point.kind === 'site' ? '#c68ade' : '#72c6cf'
-  }, [selectedEvent?.id, selectedPoint?.id])
-  const pointAltitude = useCallback((object: object) => (object as GlobePoint).id === selectedMarkerId ? .09 : .045, [selectedMarkerId])
-  const pointRadius = useCallback((object: object) => (object as GlobePoint).id === selectedMarkerId ? .55 : (object as GlobePoint).pointType === 'event' ? .29 : .22, [selectedMarkerId])
-  const handlePointClick = useCallback((object: object) => {
-    const point = object as GlobePoint
-    if (point.pointType === 'event') onEventSelect(point)
-    else onPointSelect?.(point)
-  }, [onEventSelect, onPointSelect])
   const ringColor = useCallback((object: object) => (object as HistoricalEvent).id === selectedEvent?.id
     ? ['rgba(255,244,202,1)', 'rgba(255,210,123,0)']
     : ['rgba(255,210,123,.65)', 'rgba(255,210,123,0)'], [selectedEvent?.id])
@@ -513,14 +602,6 @@ function GlobeViewComponent({
         polygonsTransitionDuration={0}
         polygonLabel={polygonLabel}
         onPolygonClick={handlePolygonClick}
-        pointsData={globePoints}
-        pointLat="lat"
-        pointLng="lng"
-        pointColor={pointColor}
-        pointAltitude={pointAltitude}
-        pointRadius={pointRadius}
-        pointLabel={pointTooltip}
-        onPointClick={handlePointClick}
         ringsData={reducedMotion ? [] : events}
         ringLat="lat"
         ringLng="lng"
@@ -541,11 +622,12 @@ function GlobeViewComponent({
         arcDashAnimateTime={reducedMotion ? 0 : 4200}
         arcLabel={arcTooltip}
         onArcClick={handleArcClick}
-        htmlElementsData={htmlLabels}
+        htmlElementsData={htmlElements}
         htmlLat="lat"
         htmlLng="lng"
         htmlAltitude={htmlAltitude}
         htmlElement={renderHtmlLabel}
+        htmlTransitionDuration={0}
         onGlobeClick={onClearSelection}
         onGlobeReady={handleReady}
         onZoom={handleZoom}
