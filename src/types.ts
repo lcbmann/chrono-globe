@@ -142,16 +142,30 @@ export interface LayerVisibility {
 
 export interface StoryStep {
   year: number
+  dateLabel?: string
+  focus?: { lat: number; lng: number }
+  section: string
   title: string
   description: string
+  significance: string
+  mapNote?: string
+  source?: { title: string; url: string }
   entity?: string
   eventId?: string
+  pointId?: string
+  routeId?: string
 }
 
 export interface HistoricalStory {
   id: string
   title: string
   subtitle: string
+  category: string
+  period: string
+  estimatedMinutes: number
+  introduction: string
+  conclusion: string
+  featured?: boolean
   color: string
   steps: StoryStep[]
 }

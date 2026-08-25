@@ -38,7 +38,7 @@ const compactRendererMedia = '(max-width: 680px), (max-width: 900px) and (max-he
 interface GlobeViewProps {
   features: HistoricalFeature[]
   active?: boolean
-  focusRequest?: { id: number; frameId?: string } | null
+  focusRequest?: { id: number; frameId?: string; location?: { lat: number; lng: number } } | null
   frameId?: string
   history: HistoricalEntityIndex[]
   selectedKey: string | null
@@ -378,16 +378,26 @@ function GlobeViewComponent({
     const [lng, lat] = geoCentroid(collection)
     return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
   }, [selectedFeatures])
+  const selectedRouteCenter = useMemo(() => {
+    if (!selectedRoute || selectedRoute.coordinates.length === 0) return null
+    const routeFeature: Feature = {
+      type: 'Feature',
+      properties: {},
+      geometry: { type: 'LineString', coordinates: selectedRoute.coordinates.map((coordinate) => [coordinate.lng, coordinate.lat]) },
+    }
+    const [lng, lat] = geoCentroid(routeFeature)
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null
+  }, [selectedRoute])
 
   useEffect(() => {
     if (!ready || visibleFrameId !== frameId || !focusRequest || handledFocusRequestRef.current === focusRequest.id) return
     if (focusRequest.frameId && visibleFrameId !== focusRequest.frameId) return
-    const focus = selectedEvent || selectedPoint || selectedCenter
+    const focus = focusRequest.location || selectedEvent || selectedPoint || selectedRouteCenter || selectedCenter
     if (!focus) return
     handledFocusRequestRef.current = focusRequest.id
     globeRef.current?.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.65 }, reducedMotion ? 0 : 900)
     onFocusRequestHandled?.(focusRequest.id)
-  }, [focusRequest, frameId, onFocusRequestHandled, ready, reducedMotion, selectedCenter, selectedEvent, selectedPoint, visibleFrameId])
+  }, [focusRequest, frameId, onFocusRequestHandled, ready, reducedMotion, selectedCenter, selectedEvent, selectedPoint, selectedRouteCenter, visibleFrameId])
 
   useEffect(() => {
     if (!ready) return

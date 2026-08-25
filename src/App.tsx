@@ -9,8 +9,8 @@ import { StoryPanel } from './components/StoryPanel'
 import { TerritoryPanel } from './components/TerritoryPanel'
 import { Timeline } from './components/Timeline'
 import { eventsNearYear, historicalEvents } from './data/events'
-import { historicalPoints, historicalRoutes, layersForDeepLink, pointsForYear, routesForYear } from './data/layers'
-import { getStory } from './data/stories'
+import { historicalPoints, historicalRoutes, layersForDeepLink, pointLayerKey, pointsForYear, routeLayerKey, routesForYear } from './data/layers'
+import { getStory, historicalStories } from './data/stories'
 import { prefetchHistoricalMap, useDatasetIndex, useHistoricalMap } from './hooks/useHistoricalData'
 import { useDialogFocus } from './hooks/useDialogFocus'
 import { useSoundscape } from './hooks/useSoundscape'
@@ -25,10 +25,11 @@ import './App.css'
 
 type GlobeMode = 'atlas' | 'earth'
 type MapSide = 'primary' | 'comparison'
-interface FocusRequest { id: number; side: MapSide; frameId?: string }
+interface FocusRequest { id: number; side: MapSide; frameId?: string; location?: { lat: number; lng: number } }
 const GlobeView = lazy(() => import('./components/GlobeView').then((module) => ({ default: module.GlobeView })))
 const emptyChangeSet: ChangeSet = { items: [], counts: { appeared: 0, disappeared: 0, expanded: 0, contracted: 0, control: 0, stable: 0 } }
 const featuredEventYears = historicalEvents.map((event) => event.year)
+const narrativeYears = [...new Set([...featuredEventYears, ...historicalStories.flatMap((story) => story.steps.map((step) => step.year))])]
 const compactLayoutMedia = '(max-width: 680px), (max-width: 900px) and (max-height: 500px)'
 const viewpointCommitDelay = 500
 const sameShareViewpoint = (left: GlobeViewpoint | undefined, right: GlobeViewpoint) => Boolean(left
@@ -40,9 +41,9 @@ const initialStory = getStory(initialUrl.story || null)
 const initialStoryStepIndex = initialStory?.steps.length ? Math.min(initialUrl.storyStep || 0, initialStory.steps.length - 1) : 0
 const initialStoryStep = initialStory?.steps[initialStoryStepIndex]
 const initialStoryEvent = historicalEvents.find((event) => event.id === (initialUrl.event || initialStoryStep?.eventId))
-const initialPoint = initialStoryEvent ? undefined : historicalPoints.find((point) => point.id === initialUrl.point)
-const initialRoute = initialStoryEvent || initialPoint ? undefined : historicalRoutes.find((route) => route.id === initialUrl.route)
-const initialHasFocusTarget = Boolean(initialUrl.entity || initialStoryStep?.entity || initialStoryEvent || initialPoint)
+const initialPoint = initialStoryEvent ? undefined : historicalPoints.find((point) => point.id === (initialUrl.point || initialStoryStep?.pointId))
+const initialRoute = initialStoryEvent ? undefined : historicalRoutes.find((route) => route.id === (initialUrl.route || initialStoryStep?.routeId))
+const initialHasFocusTarget = Boolean(initialUrl.entity || initialStoryStep?.entity || initialStoryStep?.focus || initialStoryEvent || initialPoint || initialRoute)
 const initialFocusSide: MapSide = initialUrl.compareYear !== undefined && initialUrl.side === 'comparison' ? 'comparison' : 'primary'
 const initialLayers = layersForDeepLink(initialUrl.layers, initialPoint, initialRoute)
 const initialIntroductionEligible = (() => {
@@ -112,18 +113,18 @@ function App() {
   const viewpointTimerRef = useRef<number | null>(null)
   const [shareCopied, setShareCopied] = useState(false)
   const [globeMode, setGlobeMode] = useState<GlobeMode>(initialUrl.mode || 'atlas')
-  const [mobileExplorerOpen, setMobileExplorerOpen] = useState(Boolean(initialUrl.entity || initialUrl.event || initialUrl.point || initialUrl.route))
+  const [mobileExplorerOpen, setMobileExplorerOpen] = useState(!initialStory && Boolean(initialUrl.entity || initialUrl.event || initialUrl.point || initialUrl.route))
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false)
   const [activeMapSide, setActiveMapSide] = useState<MapSide>(initialFocusSide)
   const focusSequenceRef = useRef(initialHasFocusTarget ? 1 : 0)
-  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(initialHasFocusTarget ? { id: 1, side: initialFocusSide } : null)
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(initialHasFocusTarget ? { id: 1, side: initialFocusSide, location: initialStoryStep?.focus } : null)
   const [mobileLayout, setMobileLayout] = useState(() => window.matchMedia(compactLayoutMedia).matches)
   const aboutDialogRef = useDialogFocus<HTMLElement>(aboutOpen, () => setAboutOpen(false))
   const mobileToolsDialogRef = useDialogFocus<HTMLDivElement>(mobileLayout && mobileToolsOpen, () => setMobileToolsOpen(false))
   const comparisonYearDialogRef = useDialogFocus<HTMLDivElement>(mobileLayout && mobileCompareEditorOpen, () => setMobileCompareEditorOpen(false))
-  const requestFocus = useCallback((side: MapSide, frameId?: string) => {
+  const requestFocus = useCallback((side: MapSide, frameId?: string, location?: { lat: number; lng: number }) => {
     focusSequenceRef.current += 1
-    setFocusRequest({ id: focusSequenceRef.current, side, frameId })
+    setFocusRequest({ id: focusSequenceRef.current, side, frameId, location })
   }, [])
   const consumeFocusRequest = useCallback((id: number) => {
     setFocusRequest((current) => current?.id === id ? null : current)
@@ -171,7 +172,7 @@ function App() {
     return (nextTransition.progress >= .5 && next && next !== current ? next : current)?.filename
   }, [snapshots])
   const snapshotYears = useMemo(() => snapshots.map((item) => item.year), [snapshots])
-  const timelineYears = useMemo(() => buildTimelineYears(snapshots, historicalEvents.map((event) => event.year)), [snapshots])
+  const timelineYears = useMemo(() => buildTimelineYears(snapshots, narrativeYears), [snapshots])
   const playbackYears = useMemo(() => buildPlaybackYears(snapshots, historicalEvents.map((event) => event.year)), [snapshots])
   const selectedYear = timelineYears[selectedIndex]
   const comparisonYear = timelineYears[comparisonIndex]
@@ -249,6 +250,33 @@ function App() {
   const comparisonPoints = useMemo(() => comparisonYear === undefined ? [] : pointsForYear(comparisonYear, layers), [comparisonYear, layers])
   const comparisonRoutes = useMemo(() => comparisonYear === undefined ? [] : routesForYear(comparisonYear, layers), [comparisonYear, layers])
   const activeStory = getStory(activeStoryId)
+  const goToStoryStep = useCallback((nextStep: number, storyId: string | null = activeStoryId) => {
+    const story = getStory(storyId)
+    const step = story?.steps[nextStep]
+    if (!story || !step) return
+    activatePrimaryMap()
+    const event = historicalEvents.find((item) => item.id === step.eventId) || null
+    const point = historicalPoints.find((item) => item.id === step.pointId) || null
+    const route = historicalRoutes.find((item) => item.id === step.routeId) || null
+    if (point || route) {
+      setLayers((current) => ({
+        ...current,
+        ...(point ? { [pointLayerKey(point)]: true } : {}),
+        ...(route ? { [routeLayerKey(route)]: true } : {}),
+      }))
+    }
+    requestFocus('primary', frameIdForYear(step.year), step.focus)
+    setActiveStoryId(story.id)
+    setStoryStep(nextStep)
+    setSelectedIndex(findNearestYearIndex(timelineYears, step.year))
+    setSelectedEvent(event)
+    setSelectedKey(step.entity || event?.entity || point?.entity || null)
+    setSelectedPoint(point)
+    setSelectedRoute(route)
+    setPlaying(false)
+    setWatchingEntity(null)
+    setMobileExplorerOpen(false)
+  }, [activatePrimaryMap, activeStoryId, frameIdForYear, requestFocus, timelineYears])
   const changes = useMemo(() => {
     if (!changesOpen) return emptyChangeSet
     if (comparisonOpen && comparisonDisplayFeatures.length > 0) return buildChangeSet(comparisonDisplayFeatures, displayFeatures)
@@ -280,7 +308,7 @@ function App() {
 
   useEffect(() => {
     if (!index || selectedIndex >= 0) return
-    const years = buildTimelineYears(index.maps, historicalEvents.map((event) => event.year))
+    const years = buildTimelineYears(index.maps, narrativeYears)
     const target = initialStoryStep?.year
       ?? initialUrl.year
       ?? initialStoryEvent?.year
@@ -381,6 +409,18 @@ function App() {
       }
       if (modalOpen || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
       if (event.target instanceof HTMLElement && event.target.closest('button,a,input,select,textarea,[role="button"],[contenteditable="true"]')) return
+      if (activeStoryId) {
+        if (event.key === ' ') event.preventDefault()
+        if (event.key === 'ArrowLeft' && storyStep > 0) {
+          event.preventDefault()
+          goToStoryStep(storyStep - 1)
+        }
+        if (event.key === 'ArrowRight' && storyStep < (getStory(activeStoryId)?.steps.length || 0) - 1) {
+          event.preventDefault()
+          goToStoryStep(storyStep + 1)
+        }
+        return
+      }
       if (event.key === 'ArrowLeft' && selectedIndex > 0) {
         activatePrimaryMap()
         setSelectedIndex(selectedIndex - 1)
@@ -422,7 +462,7 @@ function App() {
     }
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
-  }, [aboutOpen, activatePrimaryMap, introductionOpen, layerPanelOpen, mobileExplorerOpen, mobileToolsOpen, playing, selectedIndex, selectedYear, storyLibraryOpen, timelineYears, watchedEntity])
+  }, [aboutOpen, activatePrimaryMap, activeStoryId, goToStoryStep, introductionOpen, layerPanelOpen, mobileExplorerOpen, mobileToolsOpen, playing, selectedIndex, selectedYear, storyLibraryOpen, storyStep, timelineYears, watchedEntity])
 
   const pausePlayback = useCallback(() => setPlaying(false), [])
 
@@ -493,6 +533,7 @@ function App() {
 
   const selectRoute = useCallback((route: HistoricalRoute, side: MapSide = 'primary') => {
     activateMapSide(side)
+    requestFocus(side, side === 'comparison' ? comparisonFrame?.filename : renderFrame?.filename)
     setSelectedRoute(route)
     setSelectedPoint(null)
     setSelectedEvent(null)
@@ -501,7 +542,7 @@ function App() {
     interruptPlayback()
     setMobileExplorerOpen(true)
     chime(392)
-  }, [activateMapSide, chime, interruptPlayback])
+  }, [activateMapSide, chime, comparisonFrame?.filename, interruptPlayback, renderFrame?.filename, requestFocus])
 
   const selectEntityKey = useCallback((key: string, side: MapSide = 'primary') => {
     activateMapSide(side)
@@ -524,25 +565,6 @@ function App() {
   const selectComparisonPoint = useCallback((point: HistoricalPoint) => selectPoint(point, 'comparison'), [selectPoint])
   const selectPrimaryRoute = useCallback((route: HistoricalRoute) => selectRoute(route, 'primary'), [selectRoute])
   const selectComparisonRoute = useCallback((route: HistoricalRoute) => selectRoute(route, 'comparison'), [selectRoute])
-
-  const goToStoryStep = (nextStep: number, storyId = activeStoryId) => {
-    const story = getStory(storyId)
-    const step = story?.steps[nextStep]
-    if (!story || !step) return
-    activatePrimaryMap()
-    const event = historicalEvents.find((item) => item.id === step.eventId) || null
-    requestFocus('primary', frameIdForYear(step.year))
-    setActiveStoryId(story.id)
-    setStoryStep(nextStep)
-    setSelectedIndex(findNearestYearIndex(timelineYears, step.year))
-    setSelectedEvent(event)
-    setSelectedKey(step.entity || event?.entity || null)
-    setSelectedPoint(null)
-    setSelectedRoute(null)
-    setPlaying(false)
-    setWatchingEntity(null)
-    setMobileExplorerOpen(false)
-  }
 
   const watchEntityHistory = (entity: HistoricalEntityIndex) => {
     if (watchingEntity === entity.key && playing) {
@@ -745,7 +767,7 @@ function App() {
               events={nearbyEvents}
               points={overlayPoints}
               routes={overlayRoutes}
-              selectedEvent={activeMapSide === 'primary' && !(mobileLayout && activeStory) ? selectedEvent : null}
+              selectedEvent={activeMapSide === 'primary' ? selectedEvent : null}
               selectedPoint={activeMapSide === 'primary' ? selectedPoint : null}
               selectedRoute={activeMapSide === 'primary' ? selectedRoute : null}
               mode={globeMode}
@@ -770,6 +792,9 @@ function App() {
             onStorySelect={(story) => { setStoryLibraryOpen(false); goToStoryStep(0, story.id) }}
             onStepChange={goToStoryStep}
             onExit={() => setActiveStoryId(null)}
+            onBrowseStories={() => { setActiveStoryId(null); setStoryLibraryOpen(true) }}
+            loading={displayLoading}
+            sourceYear={renderFrame?.year}
           />
           {(displayLoading || (!index && !visibleError)) && <div className="loading-pill" role="status"><LoaderCircle size={15} className="spin" /> {!index ? 'Preparing the historical atlas' : `Loading the ${formatYear(targetSnapshot?.year || selectedYear || 0)} source map`}</div>}
           {visibleError && (
@@ -808,7 +833,7 @@ function App() {
                 events={comparisonEvents}
                 points={comparisonPoints}
                 routes={comparisonRoutes}
-                selectedEvent={activeMapSide === 'comparison' && !(mobileLayout && activeStory) ? selectedEvent : null}
+                selectedEvent={activeMapSide === 'comparison' ? selectedEvent : null}
                 selectedPoint={activeMapSide === 'comparison' ? selectedPoint : null}
                 selectedRoute={activeMapSide === 'comparison' ? selectedRoute : null}
                 mode={globeMode}

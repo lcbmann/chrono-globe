@@ -278,7 +278,7 @@ export function TerritoryPanel({
           <h2>{loading && entities.length === 0 ? 'Loading this historical map…' : `${entities.length.toLocaleString()} political and cultural entities`}</h2>
           <p>{loading && entities.length === 0 ? 'Search across all of history while the source reconstruction is prepared.' : 'Select a region, search across all of history, or open a nearby event.'}</p>
           <div className="panel-quick-start" aria-label="Ways to begin exploring">
-            <button type="button" onClick={onOpenStories}><Sparkles size={13} /><span><strong>Follow a story</strong><small>Take a short guided route</small></span></button>
+            <button type="button" onClick={onOpenStories}><Sparkles size={13} /><span><strong>Follow a story</strong><small>Read a guided historical narrative</small></span></button>
             <button type="button" onClick={surpriseMe} disabled={visibleMatches.length === 0}><Compass size={13} /><span><strong>Surprise me</strong><small>Open a notable civilization</small></span></button>
           </div>
         </div>

@@ -197,12 +197,18 @@ for (const entity of pointEntities) if (!entityKeys.has(entity.toLocaleLowerCase
 const storiesSource = await read('src/data/stories.ts')
 const storyIds = [...storiesSource.matchAll(/^\s+id:\s*'([^']+)'/gm)].map((match) => match[1])
 const storyEventIds = [...storiesSource.matchAll(/\beventId:\s*'([^']+)'/g)].map((match) => match[1])
+const storyPointIds = [...storiesSource.matchAll(/\bpointId:\s*'([^']+)'/g)].map((match) => match[1])
+const storyRouteIds = [...storiesSource.matchAll(/\brouteId:\s*'([^']+)'/g)].map((match) => match[1])
 const storyEntities = [...storiesSource.matchAll(/\bentity:\s*'([^']+)'/g)].map((match) => match[1])
+const pointIds = [...layersSource.slice(0, layersSource.indexOf('export const historicalRoutes')).matchAll(/\bid:\s*'([^']+)'/g)].map((match) => match[1])
+const routeIds = [...layersSource.slice(layersSource.indexOf('export const historicalRoutes')).matchAll(/\bid:\s*'([^']+)'/g)].map((match) => match[1])
 assertUnique(storyIds, 'story id')
 for (const id of storyEventIds) if (!eventIds.includes(id)) fail(`Story references missing event: ${id}`)
+for (const id of storyPointIds) if (!pointIds.includes(id)) fail(`Story references missing point: ${id}`)
+for (const id of storyRouteIds) if (!routeIds.includes(id)) fail(`Story references missing route: ${id}`)
 for (const entity of storyEntities) if (!entityKeys.has(entity.toLocaleLowerCase())) fail(`Story references missing entity: ${entity}`)
 
-const sourceFiles = [eventsSource, profileSource, layersSource]
+const sourceFiles = [eventsSource, profileSource, layersSource, storiesSource]
 for (const source of sourceFiles) {
   for (const match of source.matchAll(/\burl:\s*(?:`([^`]+)`|'([^']+)')/g)) {
     const url = match[1] || match[2]
