@@ -571,7 +571,7 @@ function GlobeViewComponent({
     const properties = sourceProperties(feature)
     const alternativeDetail = territorySourceMode === 'composite' && properties.renderRole === 'detail-alternative'
     const baseAlpha = selected ? .98 : alternativeDetail
-      ? mode === 'earth' ? .035 + importance * .1 : .055 + importance * .14
+      ? 0
       : mode === 'earth' ? .1 + importance * .52 : .18 + importance * .76
     const key = entityKey(feature)
     const color = showChanges ? changeColors[changeKinds?.get(key) || 'stable'] : entityColor(key)

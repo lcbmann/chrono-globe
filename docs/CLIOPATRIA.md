@@ -4,6 +4,8 @@ Chrono Globe vendors a normalized copy of [Seshat Cliopatria](https://github.com
 
 Cliopatria is an additional territorial assertion source. It does not silently overwrite Historical Basemaps, and its supra-polity `RELATION` records remain tagged separately from `POLITY` records. The interface hides relations by default.
 
+Some `POLITY` records form explicit hierarchies: a parenthesized composite lists `Components`, while its member records point back through `MemberOf`. Rendering both levels as filled polygons duplicates the same land. Chrono Globe therefore shows the composite level in the combined overview and the component level in Detailed polities. Unmatched Cliopatria assertions are boundary outlines in the combined overview and remain fully selectable; switching to Detailed polities shows their fills.
+
 ## Rebuilding the local packs
 
 Download the pinned source outside the repository and extract it. On PowerShell:

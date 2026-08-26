@@ -7,7 +7,7 @@ This is a ground-up successor to a 2024 prototype that painted each historical s
 ## What it does
 
 - Combines 53 broad worldwide reconstructions with 13,765 independently sourced Seshat Cliopatria territory intervals and 508 documented change dates.
-- Offers a calm combined view plus either territory collection independently, keeping alternative reconstructions visibly sourced instead of merging them into false certainty.
+- Offers a calm, overlap-safe combined view plus either territory collection independently, keeping alternative reconstructions as selectable sourced outlines instead of merging them into false certainty.
 - Starts at 323 BCE, preserving the original project's focus on Macedon and Alexander's empire.
 - Supports drag, zoom, click-to-inspect, alias-aware all-history civilization search, keyboard navigation, direct year entry, evidence markers, and fixed-view timelapse playback at three speeds.
 - Offers new visitors a skippable four-step introduction, suppresses it for shared deep links, and keeps it replayable from About.

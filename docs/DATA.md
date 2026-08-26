@@ -53,11 +53,13 @@ The runtime commits the broad fallback, filtered interval assertions, and time-a
 
 The Layers dialog offers:
 
-- **Combined atlas:** broad global coverage plus detailed assertions, with exact-name replacements and separately styled alternatives;
-- **Detailed polities:** Cliopatria only;
+- **Combined atlas:** broad global coverage plus reviewed, time-scoped detailed replacements; unmatched second-source assertions remain selectable boundary outlines rather than overlapping fills;
+- **Detailed polities:** Cliopatria only, showing active component polities instead of drawing a composite union over those same components;
 - **Broad reconstruction:** Historical Basemaps only.
 
-Names are only joined when they match after Unicode/whitespace normalization. Wikidata and Seshat identifiers remain available for future reviewed entity reconciliation; the application does not fuzzy-merge similarly named states.
+Feature-level names are joined when they match after Unicode/whitespace normalization or appear in the small reviewed, time-scoped identity registry. This registry currently covers high-confidence source variants such as Alexander's empire, ancient Armenia, the Mauryan Empire, and the Seleucid state. Discovery aliases, `SUBJECTO`, `MemberOf`, and shared Seshat identifiers are not treated as proof of identity because they can describe controllers, components, successors, or names reused in another era.
+
+Cliopatria composite assertions are identified through their explicit `Components`/`MemberOf` graph. The combined overview uses one aggregate level; the detailed-only view uses the active components. Raw source assertions and provenance remain unchanged in the bundled packs.
 
 ## Territory properties
 

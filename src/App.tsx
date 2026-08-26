@@ -308,8 +308,8 @@ function App() {
   const primaryDetailExpected = Boolean(detailedTerritoriesEnabled && primaryCliopatria.pack)
   const primaryDetailSettled = !primaryDetailExpected || primaryCliopatria.ready || Boolean(primaryCliopatria.error)
   const candidateDisplayFeatures = useMemo(
-    () => composeTerritoryFeatures(baselineDisplayFeatures, primaryCliopatria.features, territorySourceMode),
-    [baselineDisplayFeatures, primaryCliopatria.features, territorySourceMode],
+    () => composeTerritoryFeatures(baselineDisplayFeatures, primaryCliopatria.features, territorySourceMode, selectedYear),
+    [baselineDisplayFeatures, primaryCliopatria.features, selectedYear, territorySourceMode],
   )
   const expectedPrimaryFrameId = territoryFrameIdForYear(targetSnapshot?.filename, selectedYear)
   const primaryCandidateReady = Boolean(targetSnapshot && targetReady && renderFrame?.filename === targetSnapshot.filename
@@ -359,8 +359,8 @@ function App() {
   const comparisonDetailExpected = Boolean(detailedTerritoriesEnabled && comparisonOpen && comparisonCliopatria.pack)
   const comparisonDetailSettled = !comparisonDetailExpected || comparisonCliopatria.ready || Boolean(comparisonCliopatria.error)
   const candidateComparisonFeatures = useMemo(
-    () => composeTerritoryFeatures(baselineComparisonFeatures, comparisonCliopatria.features, territorySourceMode),
-    [baselineComparisonFeatures, comparisonCliopatria.features, territorySourceMode],
+    () => composeTerritoryFeatures(baselineComparisonFeatures, comparisonCliopatria.features, territorySourceMode, comparisonYear),
+    [baselineComparisonFeatures, comparisonCliopatria.features, comparisonYear, territorySourceMode],
   )
   const expectedComparisonFrameId = territoryFrameIdForYear(comparisonTargetSnapshot?.filename, comparisonYear)
   const comparisonCandidateReady = Boolean(comparisonOpen && comparisonTargetSnapshot && comparisonTargetReady

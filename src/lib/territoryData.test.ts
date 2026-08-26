@@ -11,6 +11,11 @@ const feature = (name: string, datasetId?: string, from = -100, to = 100, type: 
   geometry: { type: 'Polygon', coordinates: [[[0, 0], [0, 1], [1, 0], [0, 0]]] },
 })
 
+const withProperties = (name: string, properties: Partial<HistoricalFeature['properties']>) => {
+  const item = feature(name, properties.datasetId, properties.FromYear ?? -100, properties.ToYear ?? 100, properties.Type ?? 'POLITY')
+  return { ...item, properties: { ...item.properties, ...properties } } as HistoricalFeature
+}
+
 const manifest = {
   coverage: { startYear: -3400, endYear: 2024 },
   packs: [{ startYear: -100, endYear: -1, filename: 'packs/-100.geojson', features: 1, polities: 1, relations: 0 }],
@@ -32,6 +37,55 @@ describe('temporal territory data', () => {
     const combined = composeTerritoryFeatures([feature('Roman Empire'), feature('Ainu')], [feature('Roman Empire', 'cliopatria')], 'composite')
     expect(combined.map((item) => item.properties.NAME)).toEqual(['Ainu', 'Roman Empire'])
     expect((combined[0].properties as { datasetId?: string }).datasetId).toBe('historical-basemaps')
+  })
+
+  it('reconciles dated source names and renders one Alexander hierarchy level at a time', () => {
+    const parent = withProperties('(Macedonian Empire)', {
+      datasetId: 'cliopatria', FromYear: -323, ToYear: -319,
+      Components: 'Macedonian Empire;Perdiccas',
+    })
+    const macedon = withProperties('Macedonian Empire', {
+      datasetId: 'cliopatria', FromYear: -323, ToYear: -319,
+      MemberOf: '(Macedonian Empire)', PARTOF: '(Macedonian Empire)',
+    })
+    const perdiccas = withProperties('Perdiccas', {
+      datasetId: 'cliopatria', FromYear: -323, ToYear: -319,
+      MemberOf: '(Macedonian Empire)', PARTOF: '(Macedonian Empire)',
+    })
+
+    const combined = composeTerritoryFeatures([feature('Empire of Alexander')], [parent, macedon, perdiccas], 'composite', -323)
+    expect(combined).toHaveLength(1)
+    expect(combined[0].properties.NAME).toBe('(Macedonian Empire)')
+    expect(combined[0].properties.canonicalEntityKey).toBe('Empire of Alexander')
+    expect(combined[0].properties.renderRole).toBe('detail-replacement')
+
+    const detailed = composeTerritoryFeatures([], [parent, macedon, perdiccas], 'cliopatria', -323)
+    expect(detailed.map((item) => item.properties.NAME)).toEqual(['Macedonian Empire', 'Perdiccas'])
+  })
+
+  it('matches a dated state-form variant without globally conflating namesakes', () => {
+    const ancient = composeTerritoryFeatures([feature('Armenia')], [feature('Kingdom of Armenia', 'cliopatria')], 'composite', -323)
+    expect(ancient).toHaveLength(1)
+    expect(ancient[0].properties.canonicalEntityKey).toBe('Armenia')
+    expect(ancient[0].properties.renderRole).toBe('detail-replacement')
+
+    const outsideRuleScope = composeTerritoryFeatures([feature('Armenia')], [feature('Kingdom of Armenia', 'cliopatria')], 'composite', 1000)
+    expect(outsideRuleScope.map((item) => item.properties.NAME)).toEqual(['Armenia', 'Kingdom of Armenia'])
+    expect(outsideRuleScope[1].properties.renderRole).toBe('detail-alternative')
+  })
+
+  it('replaces a matching territorial feature without removing other regions under the same controller', () => {
+    const chagatai = withProperties('Chagatai Khanate', { SUBJECTO: 'Mongol Empire' })
+    const greatKhanate = withProperties('Great Khanate', { SUBJECTO: 'Mongol Empire' })
+    const combined = composeTerritoryFeatures([chagatai, greatKhanate], [feature('Chagatai Khanate', 'cliopatria')], 'composite', 1300)
+    expect(combined.map((item) => item.properties.NAME).sort()).toEqual(['Chagatai Khanate', 'Great Khanate'])
+    expect(combined.find((item) => item.properties.NAME === 'Great Khanate')?.properties.datasetId).toBe('historical-basemaps')
+    expect(combined.find((item) => item.properties.NAME === 'Chagatai Khanate')?.properties.datasetId).toBe('cliopatria')
+  })
+
+  it('keeps unmatched detailed assertions as outlines in the combined view', () => {
+    const combined = composeTerritoryFeatures([feature('Ainu')], [feature('Kingdom of Armenia', 'cliopatria')], 'composite', -323)
+    expect(combined.find((item) => item.properties.NAME === 'Kingdom of Armenia')?.properties.renderRole).toBe('detail-alternative')
   })
 
   it('merges exact entity histories without inventing intermediate observation years', () => {

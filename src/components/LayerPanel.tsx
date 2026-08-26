@@ -24,7 +24,7 @@ const options: Array<{ key: keyof LayerVisibility; title: string; description: s
 ]
 
 const territorySources: Array<{ value: TerritorySourceMode; title: string; description: string }> = [
-  { value: 'composite', title: 'Combined atlas', description: 'Broad global coverage with independently sourced detailed polity outlines' },
+  { value: 'composite', title: 'Combined atlas', description: 'Broad global coverage with detailed replacements and alternative source outlines' },
   { value: 'cliopatria', title: 'Detailed polities', description: 'Only the higher-frequency Seshat Cliopatria reconstruction' },
   { value: 'historical-basemaps', title: 'Broad reconstruction', description: 'Only the original political and cultural world maps' },
 ]

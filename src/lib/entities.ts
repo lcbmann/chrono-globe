@@ -7,7 +7,7 @@ const palette = [
 ]
 
 export const entityKey = (feature: HistoricalFeature) =>
-  feature.properties.SUBJECTO || feature.properties.PARTOF || feature.properties.NAME || 'Unknown'
+  feature.properties.canonicalEntityKey || feature.properties.SUBJECTO || feature.properties.PARTOF || feature.properties.NAME || 'Unknown'
 
 export const entityColor = (key: string) => {
   const profile = getCivilizationProfile(key)

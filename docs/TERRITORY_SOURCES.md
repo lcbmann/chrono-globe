@@ -39,3 +39,9 @@ UN SALB, Harvard CHGIS, IPUMS/MPIDR Mosaic, and proprietary atlases can help rev
 ## Required ingestion fields
 
 Every adapter should preserve dataset and source-family IDs, immutable revision/checksum, source feature ID, inclusive or exact validity dates, date precision, boundary precision, territorial definition, administrative level, license and source URLs, review status, and source lineage. Competing assertions remain independently selectable; visual transitions never create a new historical claim.
+
+## Combined-view reconciliation
+
+The combined atlas enforces one ordinary filled assertion per reviewed polity phase. Exact feature-name matches and a small time-scoped identity registry allow a detailed assertion to replace its broad counterpart. Unmatched or conflicting assertions remain interactive source-colored outlines instead of translucent caps, so disagreement stays inspectable without producing a false stack of territories.
+
+Source-internal hierarchy is resolved separately from identity. A Cliopatria composite and its declared members are never filled simultaneously: the combined overview uses the composite, while Detailed polities exposes the components. This presentation rule does not delete, geometrically merge, or claim independent corroboration for any source record.

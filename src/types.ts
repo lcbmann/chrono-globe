@@ -12,6 +12,7 @@ export interface HistoricalProperties {
   datasetId?: string
   sourceFeatureId?: string
   renderRole?: 'primary' | 'detail-replacement' | 'detail-alternative'
+  canonicalEntityKey?: string
   FromYear?: number
   ToYear?: number
   Type?: 'POLITY' | 'RELATION'
