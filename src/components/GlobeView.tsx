@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject
 import { geoArea, geoCentroid } from 'd3-geo'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
 import { feature as topojsonFeature } from 'topojson-client'
-import { AmbientLight, Color, DirectionalLight, MeshPhongMaterial } from 'three'
+import { AmbientLight, Color, DirectionalLight, DoubleSide, MeshBasicMaterial, MeshPhongMaterial } from 'three'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { GeometryCollection, Topology } from 'topojson-specification'
 import { getCivilizationProfile } from '../data/civilizations'
@@ -223,6 +223,7 @@ function GlobeViewComponent({
   const visualFeaturesRef = useRef(features)
   const transitionFrameRef = useRef<number | null>(null)
   const transitionTimerRef = useRef<number | null>(null)
+  const polygonCapMaterialsRef = useRef(new Map<RenderPolygon, MeshBasicMaterial>())
   const activeRef = useRef(active)
   activeRef.current = active
   const [size, setSize] = useState({ width: 900, height: 700 })
@@ -448,6 +449,18 @@ function GlobeViewComponent({
     return keyOrder || (left.properties.NAME || '').localeCompare(right.properties.NAME || '')
   }), [visualFeatures])
   const polygons = useMemo<RenderPolygon[]>(() => mode === 'atlas' ? [...land, ...orderedFeatures] : orderedFeatures, [land, mode, orderedFeatures])
+  useEffect(() => {
+    const visiblePolygons = new Set(polygons)
+    for (const [polygon, material] of polygonCapMaterialsRef.current) {
+      if (visiblePolygons.has(polygon)) continue
+      material.dispose()
+      polygonCapMaterialsRef.current.delete(polygon)
+    }
+  }, [polygons])
+  useEffect(() => () => {
+    for (const material of polygonCapMaterialsRef.current.values()) material.dispose()
+    polygonCapMaterialsRef.current.clear()
+  }, [])
   const historyByKey = useMemo(() => new Map(history.map((item) => [item.key, item])), [history])
   const globePoints = useMemo<GlobePoint[]>(() => [
     ...events.map((event) => ({ ...event, pointType: 'event' as const })),
@@ -545,14 +558,14 @@ function GlobeViewComponent({
     const key = entityKey(feature)
     if (key === selectedKey) return .012
     // Source reconstructions can intentionally contain overlapping or even
-    // duplicate extents. A tiny stable order prevents coplanar transparent
-    // caps from z-fighting without suggesting a meaningful vertical hierarchy.
+    // duplicate extents. A tiny stable offset separates coincident surfaces;
+    // transparent caps also disable depth writes below so overlaps stay visible.
     const sourceOffset = featureDatasetId(feature) === 'cliopatria' ? .0026 : 0
     return .0052 + sourceOffset + prominence(feature) * .00135 + stableLayerRank(key) * .0000025
   }, [prominence, selectedKey])
-  const polygonCapColor = useCallback((object: object) => {
+  const polygonCapStyle = useCallback((object: object) => {
     const feature = historicalFeature(object as RenderPolygon)
-    if (!feature) return 'rgba(43, 63, 54, 0.96)'
+    if (!feature) return { color: '#2b3f36', alpha: .96, depthWrite: true }
     const importance = prominence(feature)
     const selected = entityKey(feature) === selectedKey
     const properties = sourceProperties(feature)
@@ -562,8 +575,25 @@ function GlobeViewComponent({
       : mode === 'earth' ? .1 + importance * .52 : .18 + importance * .76
     const key = entityKey(feature)
     const color = showChanges ? changeColors[changeKinds?.get(key) || 'stable'] : entityColor(key)
-    return rgba(color, baseAlpha)
+    return { color, alpha: baseAlpha, depthWrite: selected }
   }, [changeKinds, mode, prominence, selectedKey, showChanges, territorySourceMode])
+  const polygonCapMaterial = useCallback((object: object) => {
+    const polygon = object as RenderPolygon
+    const style = polygonCapStyle(object)
+    let material = polygonCapMaterialsRef.current.get(polygon)
+    if (!material) {
+      material = new MeshBasicMaterial({ side: DoubleSide, depthTest: true })
+      polygonCapMaterialsRef.current.set(polygon, material)
+    }
+    const transparent = style.alpha < 1
+    const materialStateChanged = material.transparent !== transparent || material.depthWrite !== style.depthWrite
+    material.color.set(style.color)
+    material.opacity = style.alpha
+    material.transparent = transparent
+    material.depthWrite = style.depthWrite
+    if (materialStateChanged) material.needsUpdate = true
+    return material
+  }, [polygonCapStyle])
   const polygonSideColor = useCallback((object: object) => {
     const feature = historicalFeature(object as RenderPolygon)
     if (!feature) return ''
@@ -629,7 +659,7 @@ function GlobeViewComponent({
         polygonsData={polygons}
         polygonGeoJsonGeometry={polygonGeometry}
         polygonAltitude={polygonAltitude}
-        polygonCapColor={polygonCapColor}
+        polygonCapMaterial={polygonCapMaterial}
         polygonSideColor={polygonSideColor}
         polygonStrokeColor={polygonStrokeColor}
         polygonCapCurvatureResolution={3}
