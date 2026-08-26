@@ -35,11 +35,14 @@ export const findSourceSnapshotIndex = (snapshots: Snapshot[], targetYear: numbe
   return firstAfter === -1 ? snapshots.length - 1 : firstAfter - 1
 }
 
-export const buildTimelineYears = (snapshots: Snapshot[], featuredYears: number[] = []) => {
+interface TimelineCoverage { startYear?: number; endYear?: number }
+
+export const buildTimelineYears = (snapshots: Snapshot[], featuredYears: number[] = [], coverage: TimelineCoverage = {}) => {
   if (snapshots.length === 0) return []
   const years = new Set([...snapshots.map((snapshot) => snapshot.year), ...featuredYears])
-  const start = snapshots[0].year
-  const end = snapshots.at(-1)?.year ?? 2010
+  const start = Math.min(snapshots[0].year, coverage.startYear ?? snapshots[0].year)
+  const lastSnapshotYear = snapshots.at(-1)?.year ?? 2010
+  const end = Math.max(lastSnapshotYear, coverage.endYear ?? lastSnapshotYear)
   const addRange = (from: number, to: number, step: number) => {
     for (let year = Math.ceil(from / step) * step; year <= to; year += step) {
       if (year !== 0) years.add(year)
@@ -52,10 +55,11 @@ export const buildTimelineYears = (snapshots: Snapshot[], featuredYears: number[
   return [...years].filter((year) => year >= start && year <= end).sort((left, right) => left - right)
 }
 
-export const buildPlaybackYears = (snapshots: Snapshot[], featuredYears: number[] = []) => {
+export const buildPlaybackYears = (snapshots: Snapshot[], featuredYears: number[] = [], coverage: TimelineCoverage = {}) => {
   if (snapshots.length === 0) return []
-  const start = snapshots[0].year
-  const end = snapshots.at(-1)?.year ?? start
+  const start = Math.min(snapshots[0].year, coverage.startYear ?? snapshots[0].year)
+  const lastSnapshotYear = snapshots.at(-1)?.year ?? start
+  const end = Math.max(lastSnapshotYear, coverage.endYear ?? lastSnapshotYear)
   return [...new Set([...snapshots.map((snapshot) => snapshot.year), ...featuredYears])]
     .filter((year) => year !== 0 && year >= start && year <= end)
     .sort((left, right) => left - right)

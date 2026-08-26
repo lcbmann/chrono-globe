@@ -9,6 +9,7 @@ import { getCivilizationProfile } from '../data/civilizations'
 import { changeColors, changeLabels } from '../lib/changes'
 import { entityColor, entityKey, escapeHtml } from '../lib/entities'
 import { buildMarkerOffsets } from '../lib/markers'
+import type { TerritorySourceMode } from '../lib/territoryData'
 import { formatYear } from '../lib/time'
 import { defaultGlobeViewpoint } from '../lib/viewpoint'
 import type { ChangeKind, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute } from '../types'
@@ -49,6 +50,7 @@ interface GlobeViewProps {
   selectedPoint?: HistoricalPoint | null
   selectedRoute?: HistoricalRoute | null
   mode: 'atlas' | 'earth'
+  territorySourceMode?: TerritorySourceMode
   showChanges?: boolean
   changeKinds?: Map<string, ChangeKind>
   initialViewRef?: RefObject<GlobeViewpoint>
@@ -105,6 +107,13 @@ const isLand = (polygon: RenderPolygon): polygon is LandFeature => {
 }
 const historicalFeature = (polygon: RenderPolygon) => isLand(polygon) ? null : polygon
 const precisionLabel = (precision: number | null) => precision === 3 ? 'Well documented' : precision === 2 ? 'Moderately certain' : 'Approximate extent'
+const sourceProperties = (feature: HistoricalFeature) => feature.properties as HistoricalFeature['properties'] & {
+  datasetId?: string
+  renderRole?: 'primary' | 'detail-replacement' | 'detail-alternative'
+  FromYear?: number
+  ToYear?: number
+}
+const featureDatasetId = (feature: HistoricalFeature) => sourceProperties(feature).datasetId || 'historical-basemaps'
 
 let landRequest: Promise<LandFeature[]> | null = null
 const loadLand = () => {
@@ -199,7 +208,7 @@ const renderHtmlLabel = (object: object) => {
 
 function GlobeViewComponent({
   features, active = true, focusRequest = null, frameId, history, selectedKey, events, points = [], routes = [], selectedEvent,
-  selectedPoint = null, selectedRoute = null, mode, showChanges = false, changeKinds, initialViewRef, onViewChange,
+  selectedPoint = null, selectedRoute = null, mode, territorySourceMode = 'historical-basemaps', showChanges = false, changeKinds, initialViewRef, onViewChange,
   onActivate, onFocusRequestHandled, onFrameReady, onSelect, onEventSelect, onPointSelect, onRouteSelect, onClearSelection,
 }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -433,6 +442,8 @@ function GlobeViewComponent({
   }, [frameId, onFrameReady, ready, visibleFrameId, visualFeatures])
 
   const orderedFeatures = useMemo(() => [...visualFeatures].sort((left, right) => {
+    const datasetOrder = Number(featureDatasetId(left) === 'cliopatria') - Number(featureDatasetId(right) === 'cliopatria')
+    if (datasetOrder) return datasetOrder
     const keyOrder = entityKey(left).localeCompare(entityKey(right))
     return keyOrder || (left.properties.NAME || '').localeCompare(right.properties.NAME || '')
   }), [visualFeatures])
@@ -520,7 +531,12 @@ function GlobeViewComponent({
     const regional = region !== key ? `<div>Region: ${escapeHtml(region)}</div>` : ''
     const change = showChanges ? changeKinds?.get(key) : undefined
     const changeCopy = change ? ` · ${changeLabels[change]}` : ''
-    return `<div class="globe-tooltip"><strong>${escapeHtml(key)}</strong>${regional}<span>${precisionLabel(feature.properties.BORDERPRECISION)}${changeCopy}</span></div>`
+    const properties = sourceProperties(feature)
+    const source = featureDatasetId(feature) === 'cliopatria' ? 'Seshat Cliopatria' : 'Historical Basemaps'
+    const assertedRange = Number.isInteger(properties.FromYear) && Number.isInteger(properties.ToYear)
+      ? ` · ${formatYear(properties.FromYear!)}–${formatYear(properties.ToYear!)}`
+      : ''
+    return `<div class="globe-tooltip"><strong>${escapeHtml(key)}</strong>${regional}<span>${precisionLabel(feature.properties.BORDERPRECISION)}${changeCopy}</span><span>Source: ${source}${assertedRange}</span></div>`
   }, [changeKinds, showChanges])
 
   const polygonAltitude = useCallback((object: object) => {
@@ -531,18 +547,23 @@ function GlobeViewComponent({
     // Source reconstructions can intentionally contain overlapping or even
     // duplicate extents. A tiny stable order prevents coplanar transparent
     // caps from z-fighting without suggesting a meaningful vertical hierarchy.
-    return .0052 + prominence(feature) * .00135 + stableLayerRank(key) * .0000025
+    const sourceOffset = featureDatasetId(feature) === 'cliopatria' ? .0026 : 0
+    return .0052 + sourceOffset + prominence(feature) * .00135 + stableLayerRank(key) * .0000025
   }, [prominence, selectedKey])
   const polygonCapColor = useCallback((object: object) => {
     const feature = historicalFeature(object as RenderPolygon)
     if (!feature) return 'rgba(43, 63, 54, 0.96)'
     const importance = prominence(feature)
     const selected = entityKey(feature) === selectedKey
-    const baseAlpha = selected ? .98 : mode === 'earth' ? .1 + importance * .52 : .18 + importance * .76
+    const properties = sourceProperties(feature)
+    const alternativeDetail = territorySourceMode === 'composite' && properties.renderRole === 'detail-alternative'
+    const baseAlpha = selected ? .98 : alternativeDetail
+      ? mode === 'earth' ? .035 + importance * .1 : .055 + importance * .14
+      : mode === 'earth' ? .1 + importance * .52 : .18 + importance * .76
     const key = entityKey(feature)
     const color = showChanges ? changeColors[changeKinds?.get(key) || 'stable'] : entityColor(key)
     return rgba(color, baseAlpha)
-  }, [changeKinds, mode, prominence, selectedKey, showChanges])
+  }, [changeKinds, mode, prominence, selectedKey, showChanges, territorySourceMode])
   const polygonSideColor = useCallback((object: object) => {
     const feature = historicalFeature(object as RenderPolygon)
     if (!feature) return ''
@@ -555,10 +576,13 @@ function GlobeViewComponent({
     const feature = historicalFeature(object as RenderPolygon)
     if (!feature) return 'rgba(130, 159, 140, 0.2)'
     const importance = prominence(feature)
+    if (territorySourceMode === 'composite' && sourceProperties(feature).renderRole === 'detail-alternative') {
+      return `rgba(104, 204, 204, ${.3 + importance * .52})`
+    }
     if (importance < (size.width < 620 ? .24 : .16)) return ''
     const alpha = importance > .78 ? .9 : .08 + importance * .34
     return importance > .78 ? `rgba(255, 239, 196, ${alpha})` : `rgba(255, 247, 220, ${alpha})`
-  }, [prominence, size.width])
+  }, [prominence, size.width, territorySourceMode])
   const handlePolygonClick = useCallback((object: object) => {
     const polygon = object as RenderPolygon
     const feature = historicalFeature(polygon)

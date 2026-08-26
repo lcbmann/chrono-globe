@@ -84,7 +84,7 @@ export function Timeline({
           <div className="entity-playback-copy">
             <span>Mapped history</span>
             <strong>{watching.name}</strong>
-            <small role="status" aria-live="polite">{waiting ? <><LoaderCircle size={11} className="spin" /> Loading the next complete map</> : playing ? `Playing sourced snapshots · ${playbackRate}×` : selected >= watching.lastYear ? 'History complete' : 'Paused'}</small>
+            <small role="status" aria-live="polite">{waiting ? <><LoaderCircle size={11} className="spin" /> Loading the next complete frame</> : playing ? `Playing sourced territory dates · ${playbackRate}×` : selected >= watching.lastYear ? 'History complete' : 'Paused'}</small>
           </div>
           <div className="entity-playback-progress">
             <div
@@ -141,7 +141,7 @@ export function Timeline({
             {sourceMarkers.map((year) => <i className="source-marker" key={year} style={{ left: markerPosition(year) }} />)}
             {featuredMarkers.map((year) => <i className="featured-marker" key={year} style={{ left: markerPosition(year) }} />)}
           </div>
-          <span id="timeline-evidence-key" className="sr-only">Gold ticks show {sourceMarkers.length} source-map dates. Blue dots show {featuredMarkers.length} event dates for {featuredYears.length} featured historical moments.</span>
+          <span id="timeline-evidence-key" className="sr-only">Gold ticks show {sourceMarkers.length} sourced territory dates. Blue dots show {featuredMarkers.length} event dates for {featuredYears.length} featured historical moments.</span>
           <input
             aria-label="Historical year"
             aria-describedby="timeline-evidence-key"
@@ -155,7 +155,7 @@ export function Timeline({
           />
           <div className="range-labels" aria-hidden="true">
             <span>{formatYear(years[0])}</span>
-            <span>{playing && !watching ? `Timelapse · view held · ${playbackRate}×` : `${sourceYears.length} source maps · ${featuredYears.length} moments`}</span>
+            <span>{playing && !watching ? `Timelapse · view held · ${playbackRate}×` : `${sourceYears.length} source dates · ${featuredYears.length} moments`}</span>
             <span>{formatYear(years.at(-1) || 2010)}</span>
           </div>
         </div>

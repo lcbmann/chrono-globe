@@ -1,4 +1,4 @@
-import { readFile, access } from 'node:fs/promises'
+import { readFile, access, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { geoArea } from 'd3-geo'
 import { HEMISPHERE_AREA } from './historical-geometry.mjs'
@@ -9,6 +9,8 @@ const index = JSON.parse(await read('public/data/index.json'))
 const failures = []
 const maps = Array.isArray(index.maps) ? index.maps : []
 const indexedEntities = Array.isArray(index.entities) ? index.entities : []
+const territoryDatasets = Array.isArray(index.territoryDatasets) ? index.territoryDatasets : []
+const territoryDatasetsById = new Map(territoryDatasets.flatMap((dataset) => typeof dataset.id === 'string' ? [[dataset.id, dataset]] : []))
 const entityKeys = new Set(indexedEntities.flatMap((entity) => typeof entity.key === 'string' ? [entity.key.toLocaleLowerCase()] : []))
 
 const fail = (message) => failures.push(message)
@@ -21,13 +23,10 @@ const assertUnique = (values, label) => {
   }
 }
 
-if (typeof index.sourceCommit !== 'string' || !/^[0-9a-f]{40}$/i.test(index.sourceCommit)) {
-  fail('Dataset index must record one immutable 40-character source commit')
-}
+if (index.schemaVersion !== 2) fail('Dataset index must use territory schema version 2')
 if (!Array.isArray(index.maps) || maps.length === 0) fail('Dataset index must contain at least one map')
 if (!Array.isArray(index.entities) || indexedEntities.length === 0) fail('Dataset index must contain at least one entity')
-if (index.source !== 'https://github.com/aourednik/historical-basemaps') fail('Dataset index must identify the Historical Basemaps source repository')
-if (index.license !== 'GPL-3.0') fail('Dataset index must retain the Historical Basemaps GPL-3.0 license')
+if (!Array.isArray(index.territoryDatasets) || territoryDatasets.length === 0) fail('Dataset index must contain at least one territory dataset')
 if (typeof index.updatedAt !== 'string' || !Number.isFinite(Date.parse(index.updatedAt)) || new Date(index.updatedAt).toISOString() !== index.updatedAt) {
   fail('Dataset index updatedAt must be an ISO 8601 UTC timestamp')
 }
@@ -35,12 +34,61 @@ if (typeof index.updatedAt !== 'string' || !Number.isFinite(Date.parse(index.upd
 assertUnique(maps.map((map) => String(map.year)), 'map year')
 assertUnique(maps.flatMap((map) => typeof map.filename === 'string' ? [map.filename] : []), 'map filename')
 assertUnique(indexedEntities.flatMap((entity) => typeof entity.key === 'string' ? [entity.key] : []), 'entity key')
+assertUnique(territoryDatasets.flatMap((dataset) => typeof dataset.id === 'string' ? [dataset.id] : []), 'territory dataset id')
+
+const revisionKinds = new Set(['git', 'release', 'checksum'])
+const datasetScopes = new Set(['global', 'regional', 'entity'])
+for (const dataset of territoryDatasets) {
+  if (typeof dataset.id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(dataset.id)) fail('Territory dataset has an invalid id')
+  if (typeof dataset.title !== 'string' || dataset.title.trim() !== dataset.title || dataset.title.length === 0) fail(`Territory dataset has an invalid title: ${dataset.id}`)
+  if (typeof dataset.sourceFamilyId !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(dataset.sourceFamilyId)) fail(`Territory dataset has an invalid source family id: ${dataset.id}`)
+  try {
+    if (new URL(dataset.source).protocol !== 'https:') fail(`Territory dataset source must use HTTPS: ${dataset.id}`)
+  } catch { fail(`Territory dataset has an invalid source URL: ${dataset.id}`) }
+  if (typeof dataset.license !== 'string' || dataset.license.trim() !== dataset.license || dataset.license.length === 0) fail(`Territory dataset has an invalid license: ${dataset.id}`)
+  try {
+    if (new URL(dataset.licenseUrl).protocol !== 'https:') fail(`Territory dataset license URL must use HTTPS: ${dataset.id}`)
+  } catch { fail(`Territory dataset has an invalid license URL: ${dataset.id}`) }
+  if (!dataset.revision || !revisionKinds.has(dataset.revision.kind) || typeof dataset.revision.value !== 'string' || dataset.revision.value.trim() !== dataset.revision.value || dataset.revision.value.length === 0) {
+    fail(`Territory dataset has an invalid immutable revision: ${dataset.id}`)
+  } else if (dataset.revision.kind === 'git' && !/^[0-9a-f]{40}$/i.test(dataset.revision.value)) {
+    fail(`Territory dataset git revision must be a 40-character commit: ${dataset.id}`)
+  }
+  if (!datasetScopes.has(dataset.scope)) fail(`Territory dataset has an invalid scope: ${dataset.id}`)
+  if (!dataset.coverage
+    || !Number.isInteger(dataset.coverage.startYear)
+    || !Number.isInteger(dataset.coverage.endYear)
+    || dataset.coverage.startYear === 0
+    || dataset.coverage.endYear === 0
+    || dataset.coverage.startYear > dataset.coverage.endYear) {
+    fail(`Territory dataset has invalid coverage: ${dataset.id}`)
+  }
+  if (typeof dataset.methodology !== 'string' || dataset.methodology.trim() !== dataset.methodology || dataset.methodology.length < 20) fail(`Territory dataset needs a useful methodology note: ${dataset.id}`)
+}
+
+const defaultTerritoryDataset = territoryDatasets.find((dataset) => dataset.id === index.defaultTerritoryDatasetId)
+if (typeof index.defaultTerritoryDatasetId !== 'string' || !defaultTerritoryDataset) {
+  fail('Dataset index defaultTerritoryDatasetId must reference a registered territory dataset')
+} else {
+  if (index.source !== defaultTerritoryDataset.source) fail('Legacy source must match the default territory dataset')
+  if (index.license !== defaultTerritoryDataset.license) fail('Legacy license must match the default territory dataset')
+  const expectedCommit = defaultTerritoryDataset.revision?.kind === 'git' ? defaultTerritoryDataset.revision.value : null
+  if (index.sourceCommit !== expectedCommit) fail('Legacy sourceCommit must match the default territory dataset git revision')
+}
+
 for (const snapshot of maps) {
   if (!Number.isInteger(snapshot.year) || snapshot.year === 0) fail(`Map has an invalid historical year: ${snapshot.year}`)
   if (snapshot.filename !== `maps/${snapshot.year}.geojson`) fail(`Map filename does not match its year: ${snapshot.filename}`)
   if (!Number.isInteger(snapshot.entities) || snapshot.entities < 1) fail(`${snapshot.filename} has an invalid entity count`)
   if (!Number.isInteger(snapshot.features) || snapshot.features < 1) fail(`${snapshot.filename} has an invalid feature count`)
   if (snapshot.entities > snapshot.features) fail(`${snapshot.filename} records more entities than features`)
+  const territoryDataset = typeof snapshot.datasetId === 'string' ? territoryDatasetsById.get(snapshot.datasetId) : undefined
+  if (!territoryDataset) fail(`${snapshot.filename} references an unregistered territory dataset`)
+  else if (Number.isInteger(territoryDataset.coverage?.startYear)
+    && Number.isInteger(territoryDataset.coverage?.endYear)
+    && (snapshot.year < territoryDataset.coverage.startYear || snapshot.year > territoryDataset.coverage.endYear)) {
+    fail(`${snapshot.filename} falls outside its territory dataset coverage`)
+  }
 }
 for (let position = 1; position < maps.length; position += 1) {
   if (maps[position].year <= maps[position - 1].year) fail('Map years must be strictly ascending')
@@ -103,6 +151,69 @@ const inspectGeometry = (geometry, issues) => {
     const area = geoArea({ type: 'Polygon', coordinates: polygon })
     if (!Number.isFinite(area) || area <= 0) issues.degenerate += 1
     else if (area > HEMISPHERE_AREA) issues.reversed += 1
+  }
+}
+
+const cliopatriaDataset = territoryDatasetsById.get('cliopatria')
+if (cliopatriaDataset) {
+  try {
+    const manifest = JSON.parse(await read('public/data/sources/cliopatria/manifest.json'))
+    const manifestPath = 'public/data/sources/cliopatria'
+    for (const key of ['datasetId', 'title', 'sourceFamilyId', 'source', 'license', 'licenseUrl', 'scope', 'methodology']) {
+      const datasetKey = key === 'datasetId' ? 'id' : key
+      if (manifest[key] !== cliopatriaDataset[datasetKey]) fail(`Cliopatria manifest ${key} differs from the territory registry`)
+    }
+    if (JSON.stringify(manifest.revision) !== JSON.stringify(cliopatriaDataset.revision)) fail('Cliopatria manifest revision differs from the territory registry')
+    if (JSON.stringify(manifest.coverage) !== JSON.stringify(cliopatriaDataset.coverage)) fail('Cliopatria manifest coverage differs from the territory registry')
+    if (!Array.isArray(manifest.packs) || manifest.packs.length !== manifest.counts?.packs) fail('Cliopatria manifest has an invalid pack count')
+    if (!Array.isArray(manifest.entities) || manifest.entities.length !== manifest.counts?.uniqueNames) fail('Cliopatria manifest has an invalid entity catalog')
+    if (!Array.isArray(manifest.changeYears) || manifest.changeYears.length !== manifest.counts?.changeYears) fail('Cliopatria manifest has invalid change years')
+    if (manifest.changeYears?.some((year, position) => !Number.isInteger(year) || year === 0 || (position > 0 && year <= manifest.changeYears[position - 1]))) {
+      fail('Cliopatria change years must be non-zero, unique, and strictly ascending')
+    }
+    assertUnique((manifest.entities || []).map((entity) => entity.key), 'Cliopatria entity key')
+    assertUnique((manifest.packs || []).map((pack) => pack.filename), 'Cliopatria pack filename')
+
+    const sourceFeatureIds = new Set()
+    let packFeatureCopies = 0
+    for (const pack of manifest.packs || []) {
+      if (!Number.isInteger(pack.startYear) || !Number.isInteger(pack.endYear) || pack.endYear !== pack.startYear + 99) fail(`Cliopatria pack has an invalid range: ${pack.filename}`)
+      if (pack.filename !== `packs/${pack.startYear}.geojson`) fail(`Cliopatria pack filename does not match its range: ${pack.filename}`)
+      const path = resolve(root, manifestPath, pack.filename)
+      const fileStats = await stat(path)
+      if (fileStats.size !== pack.bytes) fail(`${pack.filename} byte size differs from its manifest`)
+      const map = JSON.parse(await readFile(path, 'utf8'))
+      if (map.type !== 'FeatureCollection' || !Array.isArray(map.features)) {
+        fail(`${pack.filename} is not a GeoJSON FeatureCollection`)
+        continue
+      }
+      if (map.datasetId !== 'cliopatria' || map.startYear !== pack.startYear || map.endYear !== pack.endYear) fail(`${pack.filename} metadata differs from its manifest`)
+      if (map.features.length !== pack.features) fail(`${pack.filename} feature count differs from its manifest`)
+      const polities = map.features.filter((feature) => feature.properties?.Type === 'POLITY').length
+      const relations = map.features.filter((feature) => feature.properties?.Type === 'RELATION').length
+      if (polities !== pack.polities || relations !== pack.relations || polities + relations !== map.features.length) fail(`${pack.filename} polity/relation counts differ from its manifest`)
+      const coordinateIssues = { nonFinite: false, outOfBounds: false, excessPrecision: false }
+      const geometryIssues = { invalidShape: 0, degenerate: 0, reversed: 0 }
+      for (const feature of map.features) {
+        const properties = feature.properties
+        if (!properties || properties.datasetId !== 'cliopatria' || typeof properties.NAME !== 'string' || properties.NAME.length === 0) fail(`${pack.filename} contains an invalid Cliopatria feature`)
+        if (!Number.isInteger(properties?.FromYear) || !Number.isInteger(properties?.ToYear) || properties.FromYear > properties.ToYear) fail(`${pack.filename} contains an invalid source interval`)
+        else if (properties.FromYear > pack.endYear || properties.ToYear < pack.startYear) fail(`${pack.filename} contains a source interval outside its pack`)
+        if (typeof properties?.sourceFeatureId !== 'string' || feature.id !== properties.sourceFeatureId) fail(`${pack.filename} contains an invalid source feature id`)
+        else sourceFeatureIds.add(properties.sourceFeatureId)
+        inspectCoordinates(feature.geometry?.coordinates, coordinateIssues)
+        inspectGeometry(feature.geometry, geometryIssues)
+      }
+      if (coordinateIssues.nonFinite) fail(`${pack.filename} contains non-finite coordinates`)
+      if (coordinateIssues.outOfBounds) fail(`${pack.filename} contains coordinates outside longitude/latitude bounds`)
+      if (coordinateIssues.excessPrecision) fail(`${pack.filename} exceeds the runtime coordinate precision`)
+      if (geometryIssues.invalidShape || geometryIssues.degenerate || geometryIssues.reversed) fail(`${pack.filename} contains invalid sanitized geometry`)
+      packFeatureCopies += map.features.length
+    }
+    if (sourceFeatureIds.size !== manifest.counts?.features) fail(`Cliopatria packs contain ${sourceFeatureIds.size} unique assertions; manifest records ${manifest.counts?.features}`)
+    if (packFeatureCopies !== manifest.counts?.packFeatureCopies) fail(`Cliopatria packs contain ${packFeatureCopies} assertion copies; manifest records ${manifest.counts?.packFeatureCopies}`)
+  } catch (error) {
+    fail(`Could not validate Cliopatria territory packs: ${error instanceof Error ? error.message : error}`)
   }
 }
 
@@ -230,5 +341,6 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`- ${failure}`)
   process.exitCode = 1
 } else {
-  console.log(`Validated ${maps.length} maps, ${indexedEntities.length} indexed entities, ${eventIds.length} events, ${profileNames.length} profile aliases, ${mediaFiles.length} free media assets, ${pointAndRouteIds.length} layer records, and ${storyIds.length} stories.`)
+  const territoryDatasetLabel = territoryDatasets.length === 1 ? 'territory dataset' : 'territory datasets'
+  console.log(`Validated ${maps.length} maps from ${territoryDatasets.length} ${territoryDatasetLabel}, ${indexedEntities.length} indexed entities, ${eventIds.length} events, ${profileNames.length} profile aliases, ${mediaFiles.length} free media assets, ${pointAndRouteIds.length} layer records, and ${storyIds.length} stories.`)
 }

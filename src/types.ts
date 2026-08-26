@@ -9,6 +9,17 @@ export interface HistoricalProperties {
   SUBJECTO: string | null
   PARTOF: string | null
   BORDERPRECISION: BorderPrecision | null
+  datasetId?: string
+  sourceFeatureId?: string
+  renderRole?: 'primary' | 'detail-replacement' | 'detail-alternative'
+  FromYear?: number
+  ToYear?: number
+  Type?: 'POLITY' | 'RELATION'
+  Wikipedia?: string | null
+  Wikidata?: string | null
+  SeshatID?: string | null
+  Components?: string | null
+  MemberOf?: string | null
 }
 
 export type HistoricalFeature = Feature<Geometry, HistoricalProperties>
@@ -17,11 +28,38 @@ export interface HistoricalMap extends FeatureCollection<Geometry, HistoricalPro
   name?: string
 }
 
+export type TerritoryDatasetScope = 'global' | 'regional' | 'entity'
+export type DatasetRevisionKind = 'git' | 'release' | 'checksum'
+
+export interface DatasetRevision {
+  kind: DatasetRevisionKind
+  value: string
+}
+
+export interface TerritoryDatasetCoverage {
+  startYear: number
+  endYear: number
+}
+
+export interface TerritoryDataset {
+  id: string
+  title: string
+  sourceFamilyId: string
+  source: string
+  license: string
+  licenseUrl: string
+  revision: DatasetRevision
+  scope: TerritoryDatasetScope
+  coverage: TerritoryDatasetCoverage
+  methodology: string
+}
+
 export interface Snapshot {
   year: number
   filename: string
   entities: number
   features: number
+  datasetId: string
 }
 
 export interface HistoricalEntityIndex {
@@ -33,14 +71,21 @@ export interface HistoricalEntityIndex {
   lastYear: number
   peakYear: number
   maxArea: number
+  datasetIds?: string[]
 }
 
 export interface DatasetIndex {
+  schemaVersion: 2
   maps: Snapshot[]
   entities: HistoricalEntityIndex[]
+  territoryDatasets: TerritoryDataset[]
+  defaultTerritoryDatasetId: string
   updatedAt: string
+  /** @deprecated Read the default entry in territoryDatasets instead. */
   source: string
+  /** @deprecated Read the default entry in territoryDatasets instead. */
   sourceCommit: string | null
+  /** @deprecated Read the default entry in territoryDatasets instead. */
   license: string
 }
 
@@ -51,6 +96,7 @@ export interface EntitySummary {
   partOf: string | null
   control: string | null
   precision: BorderPrecision
+  datasetIds: string[]
   features: HistoricalFeature[]
 }
 

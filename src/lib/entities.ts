@@ -31,6 +31,8 @@ export const groupEntities = (features: HistoricalFeature[]): EntitySummary[] =>
     if (existing) {
       existing.features.push(feature)
       existing.precision = Math.min(existing.precision, feature.properties.BORDERPRECISION || 1) as 1 | 2 | 3
+      const datasetId = feature.properties.datasetId || 'historical-basemaps'
+      if (!existing.datasetIds.includes(datasetId)) existing.datasetIds.push(datasetId)
       continue
     }
 
@@ -41,6 +43,7 @@ export const groupEntities = (features: HistoricalFeature[]): EntitySummary[] =>
       partOf: feature.properties.PARTOF,
       control: feature.properties.CONTROL,
       precision: feature.properties.BORDERPRECISION || 1,
+      datasetIds: [feature.properties.datasetId || 'historical-basemaps'],
       features: [feature],
     })
   }

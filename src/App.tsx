@@ -11,16 +11,18 @@ import { Timeline } from './components/Timeline'
 import { eventsNearYear, historicalEvents } from './data/events'
 import { historicalPoints, historicalRoutes, layersForDeepLink, pointLayerKey, pointsForYear, routeLayerKey, routesForYear } from './data/layers'
 import { getStory, historicalStories } from './data/stories'
+import { prefetchCliopatriaPack, useCliopatriaTerritories } from './hooks/useCliopatriaData'
 import { prefetchHistoricalMap, useDatasetIndex, useHistoricalMap } from './hooks/useHistoricalData'
 import { useDialogFocus } from './hooks/useDialogFocus'
 import { useSoundscape } from './hooks/useSoundscape'
 import { buildChangeSet } from './lib/changes'
 import { entityKey, groupEntities } from './lib/entities'
 import { introductionVersion, shouldOfferIntroduction } from './lib/introduction'
+import { composeTerritoryFeatures, findTerritoryPack, mergeHistoricalEntityIndexes, type TerritorySourceMode } from './lib/territoryData'
 import { buildPlaybackYears, buildTimelineYears, findNearestYearIndex, formatYear, getEraLabel, getPlaybackDelay, getSnapshotTransition, type PlaybackRate } from './lib/time'
 import { parseAtlasUrl, serializeAtlasUrl } from './lib/urlState'
 import { defaultGlobeViewpoint } from './lib/viewpoint'
-import type { ChangeSet, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute, Snapshot } from './types'
+import type { ChangeSet, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute, Snapshot, TerritoryDataset } from './types'
 import './App.css'
 
 type GlobeMode = 'atlas' | 'earth'
@@ -46,6 +48,23 @@ const initialRoute = initialStoryEvent ? undefined : historicalRoutes.find((rout
 const initialHasFocusTarget = Boolean(initialUrl.entity || initialStoryStep?.entity || initialStoryStep?.focus || initialStoryEvent || initialPoint || initialRoute)
 const initialFocusSide: MapSide = initialUrl.compareYear !== undefined && initialUrl.side === 'comparison' ? 'comparison' : 'primary'
 const initialLayers = layersForDeepLink(initialUrl.layers, initialPoint, initialRoute)
+const territoryFrameNote = (
+  mode: TerritorySourceMode,
+  selectedYear: number | undefined,
+  broadYear: number | undefined,
+  detailReady: boolean,
+  loading: boolean,
+) => {
+  if (loading) return selectedYear === undefined ? 'Loading reconstruction' : `Traveling to ${formatYear(selectedYear)}`
+  if (mode === 'cliopatria') return detailReady && selectedYear !== undefined
+    ? `Detailed source assertions for ${formatYear(selectedYear)}`
+    : 'No detailed assertion at this date'
+  if (mode === 'composite' && detailReady && selectedYear !== undefined) {
+    return `Combined sources · broad frame ${broadYear === undefined ? 'unavailable' : formatYear(broadYear)}`
+  }
+  if (broadYear === undefined) return 'Reconstruction unavailable'
+  return broadYear === selectedYear ? 'A mapped moment in history' : `Showing the ${formatYear(broadYear)} reconstruction`
+}
 const initialIntroductionEligible = (() => {
   try {
     return shouldOfferIntroduction(window.localStorage.getItem(introductionVersion), initialUrl)
@@ -65,6 +84,11 @@ interface MapFrame {
   features: HistoricalFeature[]
 }
 
+interface TerritoryFrame extends MapFrame {
+  id: string
+  targetYear: number
+}
+
 const useCommittedMapFrame = (snapshot: Snapshot | null, features: HistoricalFeature[], ready: boolean) => {
   const [frame, setFrame] = useState<MapFrame | null>(null)
 
@@ -78,6 +102,21 @@ const useCommittedMapFrame = (snapshot: Snapshot | null, features: HistoricalFea
       ? current
       : { filename: snapshot.filename, year: snapshot.year, features })
   }, [features, ready, snapshot])
+
+  return frame
+}
+
+const useCommittedTerritoryFrame = (candidate: TerritoryFrame | null, ready: boolean) => {
+  const [frame, setFrame] = useState<TerritoryFrame | null>(null)
+
+  useEffect(() => {
+    if (!candidate) {
+      setFrame(null)
+      return
+    }
+    if (!ready) return
+    setFrame((current) => current?.id === candidate.id && current.features === candidate.features ? current : candidate)
+  }, [candidate, ready])
 
   return frame
 }
@@ -102,6 +141,7 @@ function App() {
   const [storyStep, setStoryStep] = useState(initialStoryStepIndex)
   const [layerPanelOpen, setLayerPanelOpen] = useState(false)
   const [layers, setLayers] = useState(initialLayers)
+  const [territorySourceMode, setTerritorySourceMode] = useState<TerritorySourceMode>('composite')
   const [comparisonOpen, setComparisonOpen] = useState(initialUrl.compareYear !== undefined)
   const [mobileCompareEditorOpen, setMobileCompareEditorOpen] = useState(false)
   const [comparisonIndex, setComparisonIndex] = useState(-1)
@@ -164,21 +204,80 @@ function App() {
     else activatePrimaryMap()
   }, [activateComparisonMap, activatePrimaryMap])
   const { soundEnabled, toggleSound, chime } = useSoundscape()
+  const {
+    manifest: cliopatriaManifest,
+    error: cliopatriaManifestError,
+    retry: retryCliopatriaManifest,
+  } = useCliopatriaTerritories(undefined, false)
   const snapshots = useMemo(() => index?.maps || [], [index])
+  const detailedTerritoriesEnabled = territorySourceMode !== 'historical-basemaps'
+  const historicalEntities = useMemo(
+    () => mergeHistoricalEntityIndexes(
+      (index?.entities || []).map((entity) => ({
+        ...entity,
+        datasetIds: entity.datasetIds?.length ? entity.datasetIds : ['historical-basemaps'],
+      })),
+      cliopatriaManifest?.entities || [],
+    ),
+    [cliopatriaManifest?.entities, index?.entities],
+  )
+  const territoryDatasets = useMemo<TerritoryDataset[]>(() => {
+    const datasets = [...(index?.territoryDatasets || [])]
+    if (cliopatriaManifest && !datasets.some((dataset) => dataset.id === cliopatriaManifest.datasetId)) {
+      datasets.push({
+        id: cliopatriaManifest.datasetId,
+        title: cliopatriaManifest.title,
+        sourceFamilyId: cliopatriaManifest.sourceFamilyId,
+        source: cliopatriaManifest.source,
+        license: cliopatriaManifest.license,
+        licenseUrl: cliopatriaManifest.licenseUrl,
+        revision: cliopatriaManifest.revision,
+        scope: cliopatriaManifest.scope,
+        coverage: cliopatriaManifest.coverage,
+        methodology: cliopatriaManifest.methodology,
+      })
+    }
+    return datasets
+  }, [cliopatriaManifest, index?.territoryDatasets])
+  const territoryFrameIdForYear = useCallback((baselineFilename: string | undefined, year: number | undefined) => {
+    if (!baselineFilename || year === undefined) return baselineFilename
+    const detailed = detailedTerritoriesEnabled && Boolean(findTerritoryPack(cliopatriaManifest, year))
+    return `${baselineFilename}|${detailed ? `${territorySourceMode}:${year}` : 'historical-basemaps'}`
+  }, [cliopatriaManifest, detailedTerritoriesEnabled, territorySourceMode])
   const frameIdForYear = useCallback((year: number) => {
     const nextTransition = getSnapshotTransition(snapshots, year)
     const current = snapshots[nextTransition.currentIndex]
     const next = snapshots[nextTransition.nextIndex]
-    return (nextTransition.progress >= .5 && next && next !== current ? next : current)?.filename
-  }, [snapshots])
-  const snapshotYears = useMemo(() => snapshots.map((item) => item.year), [snapshots])
-  const timelineYears = useMemo(() => buildTimelineYears(snapshots, narrativeYears), [snapshots])
-  const playbackYears = useMemo(() => buildPlaybackYears(snapshots, historicalEvents.map((event) => event.year)), [snapshots])
+    const baselineFilename = (nextTransition.progress >= .5 && next && next !== current ? next : current)?.filename
+    return territoryFrameIdForYear(baselineFilename, year)
+  }, [snapshots, territoryFrameIdForYear])
+  const snapshotYears = useMemo(
+    () => [...new Set([...snapshots.map((item) => item.year), ...(cliopatriaManifest?.changeYears || [])])].sort((left, right) => left - right),
+    [cliopatriaManifest?.changeYears, snapshots],
+  )
+  const timelineYears = useMemo(
+    () => buildTimelineYears(
+      snapshots,
+      [...narrativeYears, ...(cliopatriaManifest?.changeYears || [])],
+      cliopatriaManifest?.coverage,
+    ),
+    [cliopatriaManifest?.changeYears, cliopatriaManifest?.coverage, snapshots],
+  )
+  const playbackYears = useMemo(
+    () => buildPlaybackYears(
+      snapshots,
+      [...historicalEvents.map((event) => event.year), ...(cliopatriaManifest?.changeYears || [])],
+      cliopatriaManifest?.coverage,
+    ),
+    [cliopatriaManifest?.changeYears, cliopatriaManifest?.coverage, snapshots],
+  )
   const selectedYear = timelineYears[selectedIndex]
   const comparisonYear = timelineYears[comparisonIndex]
+  const primaryCliopatria = useCliopatriaTerritories(selectedYear, detailedTerritoriesEnabled)
+  const comparisonCliopatria = useCliopatriaTerritories(comparisonYear, detailedTerritoriesEnabled && comparisonOpen)
   const watchedEntity = useMemo(
-    () => watchingEntity ? index?.entities.find((entity) => entity.key === watchingEntity) || null : null,
-    [index?.entities, watchingEntity],
+    () => watchingEntity ? historicalEntities.find((entity) => entity.key === watchingEntity) || null : null,
+    [historicalEntities, watchingEntity],
   )
   const transition = useMemo(
     () => selectedYear === undefined ? { currentIndex: -1, nextIndex: -1, progress: 0 } : getSnapshotTransition(snapshots, selectedYear),
@@ -205,10 +304,28 @@ function App() {
   const targetLoadedFilename = targetUsesNext ? nextLoadedFilename : loadedFilename
   const targetReady = Boolean(targetSnapshot && targetLoadedFilename === targetSnapshot.filename)
   const renderFrame = useCommittedMapFrame(targetSnapshot, targetFeatures, targetReady)
-  const displayFeatures = renderFrame?.features ?? emptyFeatures
-  const displayLoading = Boolean(targetSnapshot && (!targetReady || renderFrame?.filename !== targetSnapshot.filename))
+  const baselineDisplayFeatures = renderFrame?.features ?? emptyFeatures
+  const primaryDetailExpected = Boolean(detailedTerritoriesEnabled && primaryCliopatria.pack)
+  const primaryDetailSettled = !primaryDetailExpected || primaryCliopatria.ready || Boolean(primaryCliopatria.error)
+  const candidateDisplayFeatures = useMemo(
+    () => composeTerritoryFeatures(baselineDisplayFeatures, primaryCliopatria.features, territorySourceMode),
+    [baselineDisplayFeatures, primaryCliopatria.features, territorySourceMode],
+  )
+  const expectedPrimaryFrameId = territoryFrameIdForYear(targetSnapshot?.filename, selectedYear)
+  const primaryCandidateReady = Boolean(targetSnapshot && targetReady && renderFrame?.filename === targetSnapshot.filename
+    && primaryDetailSettled && (territorySourceMode !== 'cliopatria' || !(primaryCliopatria.error || cliopatriaManifestError)))
+  const primaryCandidateFrame = useMemo<TerritoryFrame | null>(() => renderFrame && expectedPrimaryFrameId && selectedYear !== undefined
+    ? { ...renderFrame, id: expectedPrimaryFrameId, targetYear: selectedYear, features: candidateDisplayFeatures }
+    : null, [candidateDisplayFeatures, expectedPrimaryFrameId, renderFrame, selectedYear])
+  const committedPrimaryFrame = useCommittedTerritoryFrame(primaryCandidateFrame, primaryCandidateReady)
+  const displayFeatures = committedPrimaryFrame?.features ?? emptyFeatures
+  const primaryFrameId = committedPrimaryFrame?.id
+  const displayLoading = Boolean(targetSnapshot && (
+    !primaryCandidateReady || committedPrimaryFrame?.id !== expectedPrimaryFrameId
+  ))
   const [renderedFrameId, setRenderedFrameId] = useState<string | null>(null)
-  const playbackFrameReady = Boolean(targetSnapshot && targetReady && renderFrame?.filename === targetSnapshot.filename && renderedFrameId === targetSnapshot.filename)
+  const playbackFrameReady = Boolean(expectedPrimaryFrameId && primaryCandidateReady
+    && committedPrimaryFrame?.id === expectedPrimaryFrameId && renderedFrameId === expectedPrimaryFrameId)
 
   useEffect(() => {
     if (mobileLayout && comparisonOpen && activeMapSide === 'comparison') setRenderedFrameId(null)
@@ -238,17 +355,37 @@ function App() {
   const comparisonTargetLoadedFilename = comparisonUsesNext ? comparisonNextLoadedFilename : comparisonLoadedFilename
   const comparisonTargetReady = Boolean(comparisonTargetSnapshot && comparisonTargetLoadedFilename === comparisonTargetSnapshot.filename)
   const comparisonFrame = useCommittedMapFrame(comparisonOpen ? comparisonTargetSnapshot : null, comparisonTargetFeatures, comparisonTargetReady)
-  const comparisonDisplayFeatures = comparisonFrame?.features ?? emptyFeatures
-  const comparisonLoading = Boolean(comparisonOpen && comparisonTargetSnapshot && (!comparisonTargetReady || comparisonFrame?.filename !== comparisonTargetSnapshot.filename))
+  const baselineComparisonFeatures = comparisonFrame?.features ?? emptyFeatures
+  const comparisonDetailExpected = Boolean(detailedTerritoriesEnabled && comparisonOpen && comparisonCliopatria.pack)
+  const comparisonDetailSettled = !comparisonDetailExpected || comparisonCliopatria.ready || Boolean(comparisonCliopatria.error)
+  const candidateComparisonFeatures = useMemo(
+    () => composeTerritoryFeatures(baselineComparisonFeatures, comparisonCliopatria.features, territorySourceMode),
+    [baselineComparisonFeatures, comparisonCliopatria.features, territorySourceMode],
+  )
+  const expectedComparisonFrameId = territoryFrameIdForYear(comparisonTargetSnapshot?.filename, comparisonYear)
+  const comparisonCandidateReady = Boolean(comparisonOpen && comparisonTargetSnapshot && comparisonTargetReady
+    && comparisonFrame?.filename === comparisonTargetSnapshot.filename && comparisonDetailSettled
+    && (territorySourceMode !== 'cliopatria' || !(comparisonCliopatria.error || cliopatriaManifestError)))
+  const comparisonCandidateFrame = useMemo<TerritoryFrame | null>(() => comparisonFrame && expectedComparisonFrameId && comparisonYear !== undefined
+    ? { ...comparisonFrame, id: expectedComparisonFrameId, targetYear: comparisonYear, features: candidateComparisonFeatures }
+    : null, [candidateComparisonFeatures, comparisonFrame, comparisonYear, expectedComparisonFrameId])
+  const committedComparisonFrame = useCommittedTerritoryFrame(comparisonCandidateFrame, comparisonCandidateReady)
+  const comparisonDisplayFeatures = committedComparisonFrame?.features ?? emptyFeatures
+  const comparisonFrameId = committedComparisonFrame?.id
+  const comparisonLoading = Boolean(comparisonOpen && comparisonTargetSnapshot && (
+    !comparisonCandidateReady || committedComparisonFrame?.id !== expectedComparisonFrameId
+  ))
 
   const entities = useMemo(() => groupEntities(displayFeatures), [displayFeatures])
   const comparisonEntities = useMemo(() => groupEntities(comparisonDisplayFeatures), [comparisonDisplayFeatures])
-  const nearbyEvents = useMemo(() => selectedYear === undefined || !layers.events ? [] : eventsNearYear(selectedYear), [layers.events, selectedYear])
-  const comparisonEvents = useMemo(() => comparisonYear === undefined || !layers.events ? [] : eventsNearYear(comparisonYear), [comparisonYear, layers.events])
-  const overlayPoints = useMemo(() => selectedYear === undefined ? [] : pointsForYear(selectedYear, layers), [layers, selectedYear])
-  const overlayRoutes = useMemo(() => selectedYear === undefined ? [] : routesForYear(selectedYear, layers), [layers, selectedYear])
-  const comparisonPoints = useMemo(() => comparisonYear === undefined ? [] : pointsForYear(comparisonYear, layers), [comparisonYear, layers])
-  const comparisonRoutes = useMemo(() => comparisonYear === undefined ? [] : routesForYear(comparisonYear, layers), [comparisonYear, layers])
+  const primaryDisplayYear = committedPrimaryFrame?.targetYear
+  const comparisonDisplayYear = committedComparisonFrame?.targetYear
+  const nearbyEvents = useMemo(() => primaryDisplayYear === undefined || !layers.events ? [] : eventsNearYear(primaryDisplayYear), [layers.events, primaryDisplayYear])
+  const comparisonEvents = useMemo(() => comparisonDisplayYear === undefined || !layers.events ? [] : eventsNearYear(comparisonDisplayYear), [comparisonDisplayYear, layers.events])
+  const overlayPoints = useMemo(() => primaryDisplayYear === undefined ? [] : pointsForYear(primaryDisplayYear, layers), [layers, primaryDisplayYear])
+  const overlayRoutes = useMemo(() => primaryDisplayYear === undefined ? [] : routesForYear(primaryDisplayYear, layers), [layers, primaryDisplayYear])
+  const comparisonPoints = useMemo(() => comparisonDisplayYear === undefined ? [] : pointsForYear(comparisonDisplayYear, layers), [comparisonDisplayYear, layers])
+  const comparisonRoutes = useMemo(() => comparisonDisplayYear === undefined ? [] : routesForYear(comparisonDisplayYear, layers), [comparisonDisplayYear, layers])
   const activeStory = getStory(activeStoryId)
   const goToStoryStep = useCallback((nextStep: number, storyId: string | null = activeStoryId) => {
     const story = getStory(storyId)
@@ -283,15 +420,15 @@ function App() {
     return buildChangeSet(features, nextFeatures.length > 0 ? nextFeatures : features)
   }, [changesOpen, comparisonDisplayFeatures, comparisonOpen, displayFeatures, features, nextFeatures])
   const changeKinds = useMemo(() => new Map(changes.items.map((item) => [item.key, item.kind])), [changes])
-  const sameSourceFrame = Boolean(comparisonOpen && renderFrame?.filename && renderFrame.filename === comparisonFrame?.filename)
+  const sameSourceFrame = Boolean(comparisonOpen && primaryFrameId && primaryFrameId === comparisonFrameId)
   const changesLoading = changesOpen && (comparisonOpen
     ? comparisonLoading || displayLoading
     : Boolean(nextSnapshot && nextSnapshot !== snapshot && nextLoadedFilename !== nextSnapshot.filename))
   const explorerUsesComparison = comparisonOpen && activeMapSide === 'comparison'
   const explorerEntities = explorerUsesComparison ? comparisonEntities : entities
   const explorerEvents = explorerUsesComparison ? comparisonEvents : nearbyEvents
-  const explorerYear = explorerUsesComparison ? comparisonYear : selectedYear
-  const explorerFrame = explorerUsesComparison ? comparisonFrame : renderFrame
+  const explorerYear = explorerUsesComparison ? comparisonDisplayYear ?? comparisonYear : primaryDisplayYear ?? selectedYear
+  const explorerFrame = explorerUsesComparison ? committedComparisonFrame : committedPrimaryFrame
   const explorerLoading = explorerUsesComparison ? comparisonLoading : displayLoading
 
   useEffect(() => {
@@ -307,8 +444,8 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!index || selectedIndex >= 0) return
-    const years = buildTimelineYears(index.maps, narrativeYears)
+    if (!index || (!cliopatriaManifest && !cliopatriaManifestError) || selectedIndex >= 0) return
+    const years = buildTimelineYears(index.maps, [...narrativeYears, ...(cliopatriaManifest?.changeYears || [])], cliopatriaManifest?.coverage)
     const target = initialStoryStep?.year
       ?? initialUrl.year
       ?? initialStoryEvent?.year
@@ -318,7 +455,7 @@ function App() {
     setSelectedIndex(findNearestYearIndex(years, target))
     const compareTarget = initialUrl.compareYear ?? index.maps[Math.max(0, getSnapshotTransition(index.maps, target).currentIndex - 1)]?.year ?? -500
     setComparisonIndex(findNearestYearIndex(years, compareTarget))
-  }, [index, selectedIndex])
+  }, [cliopatriaManifest, cliopatriaManifestError, index, selectedIndex])
 
   useEffect(() => {
     if (!introductionAutoPending || !index || selectedIndex < 0) return
@@ -355,8 +492,9 @@ function App() {
         queued.add(target.filename)
         void prefetchHistoricalMap(target)
       }
+      if (detailedTerritoriesEnabled) void prefetchCliopatriaPack(findTerritoryPack(cliopatriaManifest, year))
     })
-  }, [playbackFrameReady, playbackRate, playbackYears, playing, selectedYear, snapshots, watchedEntity])
+  }, [cliopatriaManifest, detailedTerritoriesEnabled, playbackFrameReady, playbackRate, playbackYears, playing, selectedYear, snapshots, watchedEntity])
 
   useEffect(() => {
     const pauseWhenHidden = () => {
@@ -507,7 +645,7 @@ function App() {
 
   const selectEvent = useCallback((event: HistoricalEvent, side: MapSide = 'primary') => {
     activateMapSide(side)
-    requestFocus(side, side === 'comparison' ? comparisonFrame?.filename : renderFrame?.filename)
+    requestFocus(side, side === 'comparison' ? comparisonFrameId : primaryFrameId)
     setSelectedEvent(event)
     setSelectedKey(event.entity || null)
     setSelectedPoint(null)
@@ -516,11 +654,11 @@ function App() {
     interruptPlayback()
     setMobileExplorerOpen(true)
     chime(659.25)
-  }, [activateMapSide, chime, comparisonFrame?.filename, interruptPlayback, renderFrame?.filename, requestFocus])
+  }, [activateMapSide, chime, comparisonFrameId, interruptPlayback, primaryFrameId, requestFocus])
 
   const selectPoint = useCallback((point: HistoricalPoint, side: MapSide = 'primary') => {
     activateMapSide(side)
-    requestFocus(side, side === 'comparison' ? comparisonFrame?.filename : renderFrame?.filename)
+    requestFocus(side, side === 'comparison' ? comparisonFrameId : primaryFrameId)
     setSelectedPoint(point)
     setSelectedKey(point.entity || null)
     setSelectedEvent(null)
@@ -529,11 +667,11 @@ function App() {
     interruptPlayback()
     setMobileExplorerOpen(true)
     chime(554.37)
-  }, [activateMapSide, chime, comparisonFrame?.filename, interruptPlayback, renderFrame?.filename, requestFocus])
+  }, [activateMapSide, chime, comparisonFrameId, interruptPlayback, primaryFrameId, requestFocus])
 
   const selectRoute = useCallback((route: HistoricalRoute, side: MapSide = 'primary') => {
     activateMapSide(side)
-    requestFocus(side, side === 'comparison' ? comparisonFrame?.filename : renderFrame?.filename)
+    requestFocus(side, side === 'comparison' ? comparisonFrameId : primaryFrameId)
     setSelectedRoute(route)
     setSelectedPoint(null)
     setSelectedEvent(null)
@@ -542,11 +680,11 @@ function App() {
     interruptPlayback()
     setMobileExplorerOpen(true)
     chime(392)
-  }, [activateMapSide, chime, comparisonFrame?.filename, interruptPlayback, renderFrame?.filename, requestFocus])
+  }, [activateMapSide, chime, comparisonFrameId, interruptPlayback, primaryFrameId, requestFocus])
 
   const selectEntityKey = useCallback((key: string, side: MapSide = 'primary') => {
     activateMapSide(side)
-    requestFocus(side, side === 'comparison' ? comparisonFrame?.filename : renderFrame?.filename)
+    requestFocus(side, side === 'comparison' ? comparisonFrameId : primaryFrameId)
     interruptPlayback()
     setSelectedKey(key)
     setSelectedEvent(null)
@@ -555,7 +693,7 @@ function App() {
     setActiveStoryId(null)
     setMobileExplorerOpen(true)
     chime(440)
-  }, [activateMapSide, chime, comparisonFrame?.filename, interruptPlayback, renderFrame?.filename, requestFocus])
+  }, [activateMapSide, chime, comparisonFrameId, interruptPlayback, primaryFrameId, requestFocus])
 
   const selectPrimaryFeature = useCallback((feature: HistoricalFeature) => selectEntityKey(entityKey(feature), 'primary'), [selectEntityKey])
   const selectComparisonFeature = useCallback((feature: HistoricalFeature) => selectEntityKey(entityKey(feature), 'comparison'), [selectEntityKey])
@@ -687,10 +825,39 @@ function App() {
     setIntroductionOpen(true)
   }
 
-  const visibleError = indexError || (targetUsesNext ? nextMapError : mapError)
-  const comparisonError = comparisonUsesNext ? comparisonNextMapError : comparisonMapError
-  const retryVisibleData = indexError ? retryIndex : targetUsesNext ? retryNextMap : retryMap
-  const retryComparisonData = comparisonUsesNext ? retryComparisonNextMap : retryComparisonMap
+  const primaryDetailError = territorySourceMode === 'cliopatria' ? primaryCliopatria.error || cliopatriaManifestError : null
+  const comparisonDetailError = territorySourceMode === 'cliopatria' ? comparisonCliopatria.error || cliopatriaManifestError : null
+  const visibleError = indexError || (targetUsesNext ? nextMapError : mapError) || primaryDetailError
+  const comparisonError = (comparisonUsesNext ? comparisonNextMapError : comparisonMapError) || comparisonDetailError
+  const retryVisibleData = indexError ? retryIndex
+    : primaryDetailError ? (primaryCliopatria.error ? primaryCliopatria.retry : retryCliopatriaManifest)
+      : targetUsesNext ? retryNextMap : retryMap
+  const retryComparisonData = comparisonDetailError ? (comparisonCliopatria.error ? comparisonCliopatria.retry : retryCliopatriaManifest)
+    : comparisonUsesNext ? retryComparisonNextMap : retryComparisonMap
+  const territoryDatasetCount = new Set([
+    ...(index?.territoryDatasets || []).map((dataset) => dataset.id),
+    ...(cliopatriaManifest ? [cliopatriaManifest.datasetId] : []),
+  ]).size
+  const primarySourceNote = territoryFrameNote(
+    territorySourceMode,
+    selectedYear,
+    committedPrimaryFrame?.year,
+    primaryCliopatria.ready,
+    displayLoading,
+  )
+  const comparisonSourceNote = territoryFrameNote(
+    territorySourceMode,
+    comparisonYear,
+    committedComparisonFrame?.year,
+    comparisonCliopatria.ready,
+    comparisonLoading,
+  )
+  const primaryLoadingLabel = primaryDetailExpected && !primaryDetailSettled
+    ? `Loading detailed territories for ${formatYear(selectedYear || 0)}`
+    : `Loading the ${formatYear(targetSnapshot?.year || selectedYear || 0)} broad reconstruction`
+  const comparisonLoadingLabel = comparisonDetailExpected && !comparisonDetailSettled
+    ? `Loading detailed territories for ${formatYear(comparisonYear || 0)}`
+    : `Loading the ${formatYear(comparisonTargetSnapshot?.year || comparisonYear || 0)} broad reconstruction`
 
   useEffect(() => {
     if (visibleError) setPlaying(false)
@@ -716,7 +883,7 @@ function App() {
           aria-modal={mobileLayout && mobileToolsOpen ? true : undefined}
           aria-label={mobileLayout && mobileToolsOpen ? 'Atlas tools' : undefined}
         >
-          {index && <span className="dataset-status" title={`${index.maps.length} sourced world reconstructions`}><Database size={14} /> {index.maps.length} source maps</span>}
+          {index && <span className="dataset-status" title={`${territoryDatasetCount} independently registered territory collections and ${snapshotYears.length} dated source changes`}><Database size={14} /> {territoryDatasetCount} territory sources</span>}
           <nav className="atlas-tools" aria-label="Atlas tools">
             <button type="button" onClick={() => { pausePlayback(); setStoryLibraryOpen(true); setMobileToolsOpen(false) }}><Sparkles size={14} /> Stories</button>
             <button type="button" onClick={() => { pausePlayback(); setLayerPanelOpen(true); setMobileToolsOpen(false) }}><Layers3 size={14} /> Layers</button>
@@ -749,11 +916,7 @@ function App() {
           <div className="time-readout" aria-live="polite">
             <span>{selectedYear !== undefined ? getEraLabel(selectedYear) : 'Opening the globe'}</span>
             <h1>{selectedYear !== undefined ? formatYear(selectedYear) : '—'}</h1>
-            {targetSnapshot && (renderFrame?.filename !== targetSnapshot.filename
-              ? <small className="source-frame-note">Traveling to {formatYear(selectedYear)}</small>
-              : <small className={`source-frame-note ${targetSnapshot.year === selectedYear ? 'exact' : ''}`}>{targetSnapshot.year === selectedYear
-                ? 'A mapped moment in history'
-                : `Showing the ${formatYear(targetSnapshot.year)} reconstruction`}</small>)}
+            {targetSnapshot && <small className={`source-frame-note ${!displayLoading && (primaryCliopatria.ready || committedPrimaryFrame?.year === selectedYear) ? 'exact' : ''}`}>{primarySourceNote}</small>}
           </div>
           {(!mobileLayout || !comparisonOpen || activeMapSide === 'primary') && (
             <GlobeErrorBoundary label="The historical globe"><Suspense fallback={<div className="globe-loading"><LoaderCircle size={18} className="spin" /> Preparing the globe</div>}><GlobeView
@@ -761,7 +924,7 @@ function App() {
               active={!mobileLayout || !mobileExplorerOpen}
               focusRequest={focusRequest?.side === 'primary' ? focusRequest : null}
               onFocusRequestHandled={consumeFocusRequest}
-              frameId={renderFrame?.filename}
+              frameId={primaryFrameId}
               onFrameReady={setRenderedFrameId}
               selectedKey={selectedKey}
               events={nearbyEvents}
@@ -771,12 +934,13 @@ function App() {
               selectedPoint={activeMapSide === 'primary' ? selectedPoint : null}
               selectedRoute={activeMapSide === 'primary' ? selectedRoute : null}
               mode={globeMode}
+              territorySourceMode={territorySourceMode}
               showChanges={changesOpen && !sameSourceFrame}
               changeKinds={changeKinds}
               initialViewRef={primaryViewpointRef}
               onViewChange={activeMapSide === 'primary' ? recordPrimaryViewpoint : undefined}
               onActivate={activatePrimaryMap}
-              history={index?.entities || []}
+              history={historicalEntities}
               onSelect={selectPrimaryFeature}
               onEventSelect={selectPrimaryEvent}
               onPointSelect={selectPrimaryPoint}
@@ -796,7 +960,7 @@ function App() {
             loading={displayLoading}
             sourceYear={renderFrame?.year}
           />
-          {(displayLoading || (!index && !visibleError)) && <div className="loading-pill" role="status"><LoaderCircle size={15} className="spin" /> {!index ? 'Preparing the historical atlas' : `Loading the ${formatYear(targetSnapshot?.year || selectedYear || 0)} source map`}</div>}
+          {(displayLoading || (!index && !visibleError)) && <div className="loading-pill" role="status"><LoaderCircle size={15} className="spin" /> {!index ? 'Preparing the historical atlas' : primaryLoadingLabel}</div>}
           {visibleError && (
             <div className="error-card" role="alert">
               <strong>The historical map could not be loaded.</strong><span>{visibleError}</span>
@@ -810,7 +974,7 @@ function App() {
             <div className="time-readout compare-readout">
               <span>Comparison view</span>
               <h1>{formatYear(comparisonYear)}</h1>
-              <small className={`source-frame-note ${comparisonFrame?.year === comparisonYear ? 'exact' : ''}`}>{comparisonFrame?.filename !== comparisonTargetSnapshot?.filename ? 'Loading reconstruction' : `Source map: ${formatYear(comparisonFrame?.year || comparisonYear)}`}</small>
+              <small className={`source-frame-note ${!comparisonLoading && (comparisonCliopatria.ready || committedComparisonFrame?.year === comparisonYear) ? 'exact' : ''}`}>{comparisonSourceNote}</small>
               <div
                 ref={comparisonYearDialogRef}
                 id="comparison-year-editor"
@@ -826,7 +990,7 @@ function App() {
               <GlobeErrorBoundary label="The comparison globe"><Suspense fallback={<div className="globe-loading"><LoaderCircle size={18} className="spin" /> Preparing comparison</div>}><GlobeView
                 features={comparisonDisplayFeatures}
                 active={!mobileLayout || !mobileExplorerOpen}
-                frameId={comparisonFrame?.filename}
+                frameId={comparisonFrameId}
                 focusRequest={focusRequest?.side === 'comparison' ? focusRequest : null}
                 onFocusRequestHandled={consumeFocusRequest}
                 selectedKey={selectedKey}
@@ -837,12 +1001,13 @@ function App() {
                 selectedPoint={activeMapSide === 'comparison' ? selectedPoint : null}
                 selectedRoute={activeMapSide === 'comparison' ? selectedRoute : null}
                 mode={globeMode}
+                territorySourceMode={territorySourceMode}
                 showChanges={changesOpen && !sameSourceFrame}
                 changeKinds={changeKinds}
                 initialViewRef={comparisonViewpointRef}
                 onViewChange={activeMapSide === 'comparison' ? recordComparisonViewpoint : undefined}
                 onActivate={activateComparisonMap}
-                history={index?.entities || []}
+                history={historicalEntities}
                 onSelect={selectComparisonFeature}
                 onEventSelect={selectComparisonEvent}
                 onPointSelect={selectComparisonPoint}
@@ -850,7 +1015,7 @@ function App() {
                 onClearSelection={clearSelection}
               /></Suspense></GlobeErrorBoundary>
             )}
-            {comparisonLoading && <div className="loading-pill" role="status"><LoaderCircle size={15} className="spin" /> Loading the {formatYear(comparisonTargetSnapshot?.year || comparisonYear)} source map</div>}
+            {comparisonLoading && <div className="loading-pill" role="status"><LoaderCircle size={15} className="spin" /> {comparisonLoadingLabel}</div>}
             {comparisonError && <div className="error-card" role="alert"><strong>The comparison map could not be loaded.</strong><span>{comparisonError}</span><button type="button" onClick={retryComparisonData}>Try again</button></div>}
           </section>
         )}
@@ -874,7 +1039,7 @@ function App() {
           onMobileClose={() => setMobileExplorerOpen(false)}
           entities={explorerEntities}
           loading={explorerLoading}
-          history={index?.entities || []}
+          history={historicalEntities}
           selectedKey={selectedKey}
           selectedEvent={selectedEvent}
           selectedPoint={selectedPoint}
@@ -891,10 +1056,11 @@ function App() {
           onOpenStories={() => { pausePlayback(); setStoryLibraryOpen(true); setMobileExplorerOpen(false) }}
           watchingEntity={watchingEntity}
           entityWatchPlaying={playing && Boolean(watchingEntity)}
-          sourceYear={explorerFrame?.year}
+          sourceYear={territorySourceMode === 'cliopatria' ? undefined : explorerFrame?.year}
           datasetSource={index?.source}
           sourceCommit={index?.sourceCommit}
           license={index?.license}
+          territoryDatasets={territoryDatasets}
           onClear={clearSelection}
         />
       </main>
@@ -930,7 +1096,19 @@ function App() {
         onStopWatching={interruptPlayback}
       />
 
-      <LayerPanel open={layerPanelOpen} layers={layers} onChange={setLayers} onClose={() => setLayerPanelOpen(false)} />
+      <LayerPanel
+        open={layerPanelOpen}
+        layers={layers}
+        territorySourceMode={territorySourceMode}
+        detailedTerritoriesAvailable={Boolean(cliopatriaManifest)}
+        onChange={setLayers}
+        onTerritorySourceModeChange={(mode) => {
+          pausePlayback()
+          setTerritorySourceMode(mode)
+          setRenderedFrameId(null)
+        }}
+        onClose={() => setLayerPanelOpen(false)}
+      />
 
       <IntroductionFlow
         open={introductionOpen}
@@ -947,8 +1125,8 @@ function App() {
             <button type="button" className="modal-close" onClick={() => setAboutOpen(false)} aria-label="Close about dialog">×</button>
             <div className="eyebrow">About Chrono Globe</div>
             <h2 id="about-title" tabIndex={-1} data-dialog-focus>History has fuzzy edges.</h2>
-            <p>The timeline combines regular steps with exact source dates and featured moments. Between mapped reconstructions, Chrono Globe holds the nearest sourced frame until the next complete map is ready.</p>
-            <p>Timelapse advances through complete mapped and featured frames. Its cross-fade is for orientation and never invents an in-between border.</p>
+            <p>The timeline combines regular steps, broad world maps, 508 interval-boundary dates from Seshat Cliopatria, and featured moments. The Layers dialog lets you inspect either collection alone or keep the calm combined view.</p>
+            <p>Timelapse commits each broad-and-detailed frame as one unit before cross-fading. The transition is for orientation and never invents an in-between border or resolves disagreement between sources.</p>
             <p>Ancient borders often represented influence, settlement, or tribute rather than surveyed lines. Use this as an educational starting point, not a definitive source for legal, academic, or territorial claims.</p>
             <p>City, site, migration, trade, and expedition layers are selective teaching aids. Route lines join representative waypoints and do not claim to show every branch or an exact path.</p>
             <div className="confidence-legend">
@@ -956,7 +1134,8 @@ function App() {
             </div>
             <div className="about-shortcuts"><span><kbd>Space</kbd> Play or pause</span><span><kbd>←</kbd><kbd>→</kbd> Step through time</span><span><kbd>Esc</kbd> Close open panels</span></div>
             <button type="button" className="about-introduction-button" onClick={replayIntroduction}><Sparkles size={14} /> Replay the introduction</button>
-            <a href={index?.source || 'https://github.com/aourednik/historical-basemaps'} target="_blank" rel="noreferrer">Map data &amp; credits</a>
+            <a href={index?.source || 'https://github.com/aourednik/historical-basemaps'} target="_blank" rel="noreferrer">Historical Basemaps data &amp; credits</a>
+            <a href="https://github.com/Seshat-Global-History-Databank/cliopatria" target="_blank" rel="noreferrer">Seshat Cliopatria data &amp; credits</a>
             <a href="https://science.nasa.gov/earth/earth-observatory/history-of-the-blue-marble/" target="_blank" rel="noreferrer">NASA Blue Marble imagery</a>
           </section>
         </div>

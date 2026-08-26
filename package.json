@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "data:sync": "node scripts/sync-historical-data.mjs",
+    "data:import:cliopatria": "node scripts/import-cliopatria.mjs",
     "data:validate": "node scripts/validate-historical-data.mjs",
     "check": "npm run data:validate && npm run lint && npm run test && npm run build"
   },

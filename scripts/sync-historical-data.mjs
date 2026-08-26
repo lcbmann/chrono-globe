@@ -8,6 +8,8 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const outputDirectory = join(root, 'public', 'data')
 const mapDirectory = join(outputDirectory, 'maps')
 const sourceRepository = 'aourednik/historical-basemaps'
+const territoryDatasetId = 'historical-basemaps'
+const territoryDatasetTitle = 'Historical Basemaps'
 
 await mkdir(mapDirectory, { recursive: true })
 
@@ -129,6 +131,7 @@ for (const [position, item] of sourceIndex.years.entries()) {
     filename: `maps/${filename}`,
     entities: new Set(namedFeatures.map((feature) => feature.properties.NAME)).size,
     features: namedFeatures.length,
+    datasetId: territoryDatasetId,
   })
 
   await writeFile(join(mapDirectory, filename), `${JSON.stringify(map)}\n`, 'utf8')
@@ -143,6 +146,36 @@ const entities = [...entityHistory.values()].map((entity) => ({
   lastYear: entity.years.at(-1),
 })).sort((left, right) => left.name.localeCompare(right.name))
 
+const territoryDatasets = [{
+  id: territoryDatasetId,
+  title: territoryDatasetTitle,
+  sourceFamilyId: territoryDatasetId,
+  source: `https://github.com/${sourceRepository}`,
+  license: 'GPL-3.0',
+  licenseUrl: 'https://www.gnu.org/licenses/gpl-3.0.html',
+  revision: { kind: 'git', value: sourceRevision },
+  scope: 'global',
+  coverage: { startYear: -123000, endYear: 2010 },
+  methodology: 'Source-authored dated world reconstructions normalized to GeoJSON. The collection includes political and cultural extents with source-defined boundary precision.',
+}]
+try {
+  const manifest = JSON.parse(await readFile(join(outputDirectory, 'sources', 'cliopatria', 'manifest.json'), 'utf8'))
+  territoryDatasets.push({
+    id: manifest.datasetId,
+    title: manifest.title,
+    sourceFamilyId: manifest.sourceFamilyId,
+    source: manifest.source,
+    license: manifest.license,
+    licenseUrl: manifest.licenseUrl,
+    revision: manifest.revision,
+    scope: manifest.scope,
+    coverage: manifest.coverage,
+    methodology: manifest.methodology,
+  })
+} catch (error) {
+  if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) throw error
+}
+
 await copyFile(
   join(root, 'node_modules', 'world-atlas', 'land-110m.json'),
   join(outputDirectory, 'land-110m.json'),
@@ -152,9 +185,13 @@ await writeFile(
   join(outputDirectory, 'index.json'),
   `${JSON.stringify(
     {
+      schemaVersion: 2,
       maps,
       entities,
+      territoryDatasets,
+      defaultTerritoryDatasetId: territoryDatasetId,
       updatedAt: new Date().toISOString(),
+      // Retained while the renderer and existing links migrate to the registry.
       source: `https://github.com/${sourceRepository}`,
       sourceCommit: sourceRevision,
       license: 'GPL-3.0',
@@ -168,6 +205,9 @@ await writeFile(
 const readme = await readFile(join(root, 'README.md'), 'utf8')
 if (!readme.includes('Historical Basemaps')) {
   throw new Error('README must retain Historical Basemaps attribution before data can be synced.')
+}
+if (territoryDatasets.some((dataset) => dataset.id === 'cliopatria') && !readme.includes('Cliopatria')) {
+  throw new Error('README must retain Seshat Cliopatria attribution while its data is bundled.')
 }
 
 process.stdout.write(

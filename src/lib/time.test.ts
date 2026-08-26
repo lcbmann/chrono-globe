@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { buildPlaybackYears, buildTimelineYears, findNearestSnapshotIndex, findSourceSnapshotIndex, formatYear, getPlaybackDelay, getSnapshotTransition, parseYear } from './time'
 
 const snapshots = [
-  { year: -500, filename: '', entities: 1, features: 1 },
-  { year: -323, filename: '', entities: 1, features: 1 },
-  { year: 100, filename: '', entities: 1, features: 1 },
+  { year: -500, filename: '', entities: 1, features: 1, datasetId: 'test-dataset' },
+  { year: -323, filename: '', entities: 1, features: 1, datasetId: 'test-dataset' },
+  { year: 100, filename: '', entities: 1, features: 1, datasetId: 'test-dataset' },
 ]
 
 describe('historical time helpers', () => {
@@ -35,6 +35,8 @@ describe('historical time helpers', () => {
 
   it('keeps playback to meaningful sourced and featured years', () => {
     expect(buildPlaybackYears(snapshots, [-331, -331, 500])).toEqual([-500, -331, -323, 100])
+    expect(buildPlaybackYears(snapshots, [-331, 500], { endYear: 500 })).toEqual([-500, -331, -323, 100, 500])
+    expect(buildTimelineYears(snapshots, [500], { endYear: 500 })).toContain(500)
   })
 
   it('offers slower and faster timelapse pacing without changing the safe default', () => {

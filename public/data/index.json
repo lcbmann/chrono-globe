@@ -1,322 +1,376 @@
 {
+  "schemaVersion": 2,
   "maps": [
     {
       "year": -123000,
       "filename": "maps/-123000.geojson",
       "entities": 3,
-      "features": 4
+      "features": 4,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -10000,
       "filename": "maps/-10000.geojson",
       "entities": 13,
-      "features": 16
+      "features": 16,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -8000,
       "filename": "maps/-8000.geojson",
       "entities": 14,
-      "features": 17
+      "features": 17,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -5000,
       "filename": "maps/-5000.geojson",
       "entities": 28,
-      "features": 28
+      "features": 28,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -4000,
       "filename": "maps/-4000.geojson",
       "entities": 23,
-      "features": 23
+      "features": 23,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -3000,
       "filename": "maps/-3000.geojson",
       "entities": 25,
-      "features": 25
+      "features": 25,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -2000,
       "filename": "maps/-2000.geojson",
       "entities": 45,
-      "features": 45
+      "features": 45,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -1500,
       "filename": "maps/-1500.geojson",
       "entities": 68,
-      "features": 69
+      "features": 69,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -1000,
       "filename": "maps/-1000.geojson",
       "entities": 69,
-      "features": 70
+      "features": 70,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -700,
       "filename": "maps/-700.geojson",
       "entities": 73,
-      "features": 80
+      "features": 80,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -500,
       "filename": "maps/-500.geojson",
       "entities": 74,
-      "features": 77
+      "features": 77,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -400,
       "filename": "maps/-400.geojson",
       "entities": 76,
-      "features": 81
+      "features": 81,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -323,
       "filename": "maps/-323.geojson",
       "entities": 68,
-      "features": 73
+      "features": 73,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -300,
       "filename": "maps/-300.geojson",
       "entities": 73,
-      "features": 77
+      "features": 77,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -200,
       "filename": "maps/-200.geojson",
       "entities": 85,
-      "features": 85
+      "features": 85,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -100,
       "filename": "maps/-100.geojson",
       "entities": 84,
-      "features": 85
+      "features": 85,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": -1,
       "filename": "maps/-1.geojson",
       "entities": 79,
-      "features": 80
+      "features": 80,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 100,
       "filename": "maps/100.geojson",
       "entities": 83,
-      "features": 85
+      "features": 85,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 200,
       "filename": "maps/200.geojson",
       "entities": 69,
-      "features": 70
+      "features": 70,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 300,
       "filename": "maps/300.geojson",
       "entities": 71,
-      "features": 71
+      "features": 71,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 400,
       "filename": "maps/400.geojson",
       "entities": 79,
-      "features": 80
+      "features": 80,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 500,
       "filename": "maps/500.geojson",
       "entities": 87,
-      "features": 89
+      "features": 89,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 600,
       "filename": "maps/600.geojson",
       "entities": 83,
-      "features": 88
+      "features": 88,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 700,
       "filename": "maps/700.geojson",
       "entities": 126,
-      "features": 130
+      "features": 130,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 800,
       "filename": "maps/800.geojson",
       "entities": 117,
-      "features": 122
+      "features": 122,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 900,
       "filename": "maps/900.geojson",
       "entities": 134,
-      "features": 137
+      "features": 137,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1000,
       "filename": "maps/1000.geojson",
       "entities": 129,
-      "features": 132
+      "features": 132,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1100,
       "filename": "maps/1100.geojson",
       "entities": 139,
-      "features": 149
+      "features": 149,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1200,
       "filename": "maps/1200.geojson",
       "entities": 129,
-      "features": 134
+      "features": 134,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1279,
       "filename": "maps/1279.geojson",
       "entities": 113,
-      "features": 116
+      "features": 116,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1300,
       "filename": "maps/1300.geojson",
       "entities": 113,
-      "features": 115
+      "features": 115,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1400,
       "filename": "maps/1400.geojson",
       "entities": 115,
-      "features": 122
+      "features": 122,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1492,
       "filename": "maps/1492.geojson",
       "entities": 1307,
-      "features": 1316
+      "features": 1316,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1500,
       "filename": "maps/1500.geojson",
       "entities": 139,
-      "features": 142
+      "features": 142,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1530,
       "filename": "maps/1530.geojson",
       "entities": 269,
-      "features": 277
+      "features": 277,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1600,
       "filename": "maps/1600.geojson",
       "entities": 637,
-      "features": 659
+      "features": 659,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1650,
       "filename": "maps/1650.geojson",
       "entities": 591,
-      "features": 596
+      "features": 596,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1700,
       "filename": "maps/1700.geojson",
       "entities": 584,
-      "features": 591
+      "features": 591,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1715,
       "filename": "maps/1715.geojson",
       "entities": 600,
-      "features": 606
+      "features": 606,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1783,
       "filename": "maps/1783.geojson",
       "entities": 548,
-      "features": 563
+      "features": 563,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1800,
       "filename": "maps/1800.geojson",
       "entities": 546,
-      "features": 558
+      "features": 558,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1815,
       "filename": "maps/1815.geojson",
       "entities": 312,
-      "features": 327
+      "features": 327,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1880,
       "filename": "maps/1880.geojson",
       "entities": 169,
-      "features": 173
+      "features": 173,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1900,
       "filename": "maps/1900.geojson",
       "entities": 165,
-      "features": 222
+      "features": 222,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1914,
       "filename": "maps/1914.geojson",
       "entities": 142,
-      "features": 144
+      "features": 144,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1920,
       "filename": "maps/1920.geojson",
       "entities": 163,
-      "features": 165
+      "features": 165,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1930,
       "filename": "maps/1930.geojson",
       "entities": 161,
-      "features": 163
+      "features": 163,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1938,
       "filename": "maps/1938.geojson",
       "entities": 171,
-      "features": 174
+      "features": 174,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1945,
       "filename": "maps/1945.geojson",
       "entities": 183,
-      "features": 185
+      "features": 185,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1960,
       "filename": "maps/1960.geojson",
       "entities": 157,
-      "features": 160
+      "features": 160,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 1994,
       "filename": "maps/1994.geojson",
       "entities": 193,
-      "features": 197
+      "features": 197,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 2000,
       "filename": "maps/2000.geojson",
       "entities": 193,
-      "features": 198
+      "features": 198,
+      "datasetId": "historical-basemaps"
     },
     {
       "year": 2010,
       "filename": "maps/2010.geojson",
       "entities": 193,
-      "features": 198
+      "features": 198,
+      "datasetId": "historical-basemaps"
     }
   ],
   "entities": [
@@ -42004,6 +42058,45 @@
       "lastYear": 1492
     }
   ],
+  "territoryDatasets": [
+    {
+      "id": "historical-basemaps",
+      "title": "Historical Basemaps",
+      "sourceFamilyId": "historical-basemaps",
+      "source": "https://github.com/aourednik/historical-basemaps",
+      "license": "GPL-3.0",
+      "licenseUrl": "https://www.gnu.org/licenses/gpl-3.0.html",
+      "revision": {
+        "kind": "git",
+        "value": "62d8f1a03a71f2d3ff17f2d166f7553f256bce68"
+      },
+      "scope": "global",
+      "coverage": {
+        "startYear": -123000,
+        "endYear": 2010
+      },
+      "methodology": "Source-authored dated world reconstructions normalized to GeoJSON. The collection includes political and cultural extents with source-defined boundary precision."
+    },
+    {
+      "id": "cliopatria",
+      "title": "Seshat Cliopatria",
+      "sourceFamilyId": "seshat-cliopatria",
+      "source": "https://github.com/Seshat-Global-History-Databank/cliopatria",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "revision": {
+        "kind": "git",
+        "value": "ad28a691b7c07c1fca89d0e0636d324667d2a258"
+      },
+      "scope": "global",
+      "coverage": {
+        "startYear": -3400,
+        "endYear": 2024
+      },
+      "methodology": "Inclusive source intervals are duplicated into 100-year packs for lazy runtime filtering. Coordinates are rounded to three decimal degrees, invalid rings are removed, winding is repaired, and no geometric simplification or cross-source fusion is performed."
+    }
+  ],
+  "defaultTerritoryDatasetId": "historical-basemaps",
   "updatedAt": "2026-08-25T14:57:34.998Z",
   "source": "https://github.com/aourednik/historical-basemaps",
   "sourceCommit": "62d8f1a03a71f2d3ff17f2d166f7553f256bce68",

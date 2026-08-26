@@ -6,7 +6,8 @@ This is a ground-up successor to a 2024 prototype that painted each historical s
 
 ## What it does
 
-- Shows 53 worldwide source reconstructions from 123,000 BCE to 2010 CE on a readable, decade-scale historical cursor.
+- Combines 53 broad worldwide reconstructions with 13,765 independently sourced Seshat Cliopatria territory intervals and 508 documented change dates.
+- Offers a calm combined view plus either territory collection independently, keeping alternative reconstructions visibly sourced instead of merging them into false certainty.
 - Starts at 323 BCE, preserving the original project's focus on Macedon and Alexander's empire.
 - Supports drag, zoom, click-to-inspect, alias-aware all-history civilization search, keyboard navigation, direct year entry, evidence markers, and fixed-view timelapse playback at three speeds.
 - Offers new visitors a skippable four-step introduction, suppresses it for shared deep links, and keeps it replayable from About.
@@ -84,7 +85,9 @@ For academic, legal, or politically sensitive use, verify a region against speci
 
 ## Data and attribution
 
-Historical polygons come from [Historical Basemaps](https://github.com/aourednik/historical-basemaps) by Alexandre Ourednik and contributors, licensed under GPL-3.0. The project describes itself as work in progress and asks users to verify maps before academic use.
+The territory registry contains two independently packaged boundary collections. [Historical Basemaps](https://github.com/aourednik/historical-basemaps) by Alexandre Ourednik and contributors is licensed under GPL-3.0 and supplies 53 broad political and cultural world reconstructions. Those dates are snapshots from one dataset, not 53 independent datasets. The project describes itself as work in progress and asks users to verify maps before academic use.
+
+[Seshat Cliopatria](https://github.com/Seshat-Global-History-Databank/cliopatria), pinned to revision `ad28a691`, is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Chrono Globe packages its 13,765 inclusive polity/relation intervals into lazy century files, displays polity assertions by default, and preserves source identifiers, validity ranges, Wikidata, Wikipedia, Seshat, relationship, and revision metadata. Coordinates are rounded to three decimals and invalid rings are sanitized; no cross-source geometric union or synthetic border is produced.
 
 The physical land silhouette is derived from [Natural Earth](https://www.naturalearthdata.com/) through the [`world-atlas`](https://github.com/topojson/world-atlas) TopoJSON package. Natural Earth data is in the public domain; `world-atlas` is ISC licensed.
 

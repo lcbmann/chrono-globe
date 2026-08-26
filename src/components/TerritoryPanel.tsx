@@ -6,7 +6,7 @@ import { commonsImageUrl, getCivilizationMedia } from '../data/civilizationMedia
 import { useDialogFocus } from '../hooks/useDialogFocus'
 import { entityColor } from '../lib/entities'
 import { formatYear } from '../lib/time'
-import type { EntitySummary, HistoricalEntityIndex, HistoricalEvent, HistoricalPoint, HistoricalRoute } from '../types'
+import type { EntitySummary, HistoricalEntityIndex, HistoricalEvent, HistoricalPoint, HistoricalRoute, TerritoryDataset } from '../types'
 import { CivilizationMedia } from './CivilizationMedia'
 
 interface TerritoryPanelProps {
@@ -36,15 +36,23 @@ interface TerritoryPanelProps {
   datasetSource?: string
   sourceCommit?: string | null
   license?: string
+  territoryDatasets?: TerritoryDataset[]
   onClear: () => void
 }
 
 const confidence = ['Unknown', 'Approximate extent', 'Moderate confidence', 'Documented boundary']
 const culturalPattern = /culture|peoples?|tribes?|hunter|gatherer|pastoral|farmer|pottery|burial|tradition|speakers?|nomads?/i
 const eras = {
-  all: [-123000, 2010], ancient: [-123000, 500], medieval: [500, 1500], early: [1500, 1800], modern: [1800, 2010],
+  all: [-123000, 2024], ancient: [-123000, 500], medieval: [500, 1500], early: [1500, 1800], modern: [1800, 2024],
 } as const
 const resultPageSize = 120
+const discoveryIdentity = (entity: EntitySummary) => getCivilizationProfile(entity.key)?.displayName.trim().toLocaleLowerCase() || null
+const discoveryPriority = (entity: EntitySummary) => {
+  const displayName = getCivilizationProfile(entity.key)?.displayName.trim().toLocaleLowerCase()
+  const key = entity.key.trim().toLocaleLowerCase()
+  return (displayName === key ? 10_000 : 0) + (!/^\(.+\)$/.test(entity.key.trim()) ? 1_000 : 0)
+    + entity.datasetIds.length * 10 + entity.features.length
+}
 
 const regionForEntity = (entity: EntitySummary) => {
   const [lng, lat] = geoCentroid({ type: 'FeatureCollection', features: entity.features })
@@ -60,7 +68,7 @@ export function TerritoryPanel({
   mobileLayout = false, mobileOpen = false, onMobileClose, loading = false,
   entities, history, selectedKey, selectedEvent, selectedPoint, selectedRoute, nearbyEvents, year, query,
   onQueryChange, onSelect, onHistoricalSelect, onEventSelect, onHistoryYearSelect, onWatchEntity, watchingEntity, entityWatchPlaying,
-  onOpenStories, sourceYear, datasetSource, sourceCommit, license, onClear,
+  onOpenStories, sourceYear, datasetSource, sourceCommit, license, territoryDatasets = [], onClear,
 }: TerritoryPanelProps) {
   const [entityFilter, setEntityFilter] = useState('all')
   const [regionFilter, setRegionFilter] = useState('all')
@@ -73,6 +81,14 @@ export function TerritoryPanel({
   const historical = history.find((entity) => entity.key === selectedKey)
   const profile = selectedKey ? getCivilizationProfile(selectedKey) : undefined
   const media = selectedKey ? getCivilizationMedia(selectedKey) : undefined
+  const evidenceDatasetIds = [...new Set([
+    ...(selected?.datasetIds || []),
+    ...(historical?.datasetIds || []),
+    ...(!selected?.datasetIds?.length && !historical?.datasetIds?.length ? ['historical-basemaps'] : []),
+  ])]
+  const evidenceDatasets = evidenceDatasetIds
+    .map((datasetId) => territoryDatasets.find((dataset) => dataset.id === datasetId))
+    .filter((dataset): dataset is TerritoryDataset => Boolean(dataset))
   const normalizedQuery = query.trim().toLowerCase()
   const historyByKey = useMemo(() => new Map(history.map((entity) => [entity.key, entity])), [history])
   const searchableEntities = useMemo(() => entities.map((entity) => {
@@ -95,13 +111,32 @@ export function TerritoryPanel({
     ? null
     : new Map(entities.map((entity) => [entity.key, regionForEntity(entity)])), [entities, regionFilter])
   const [eraStart, eraEnd] = eras[eraFilter]
-  const visibleMatches = searchableEntities.filter(({ entity, matchedProfile, searchText }) => {
+  const rankedVisibleMatches = searchableEntities.filter(({ entity, matchedProfile, searchText }) => {
     const matchesType = entityFilter === 'all' || (entityFilter === 'profiled' ? Boolean(matchedProfile) : entityFilter === 'cultural' ? culturalPattern.test(entity.key) : !culturalPattern.test(entity.key))
     const matchesRegion = regionFilter === 'all' || regionByKey?.get(entity.key) === regionFilter
     const chronology = historyByKey.get(entity.key)
     const matchesEra = eraFilter === 'all' || Boolean(chronology && chronology.lastYear >= eraStart && chronology.firstYear <= eraEnd)
     return matchesType && matchesRegion && matchesEra && searchText.includes(normalizedQuery)
   }).map(({ entity }) => entity).sort((left, right) => normalizedQuery ? left.name.localeCompare(right.name) : (getCivilizationProfile(right.key)?.importance || 0) - (getCivilizationProfile(left.key)?.importance || 0) || left.name.localeCompare(right.name))
+  const visibleMatches = (() => {
+    const results: EntitySummary[] = []
+    const profilePositions = new Map<string, number>()
+    for (const entity of rankedVisibleMatches) {
+      const identity = discoveryIdentity(entity)
+      if (!identity) {
+        results.push(entity)
+        continue
+      }
+      const existingPosition = profilePositions.get(identity)
+      if (existingPosition === undefined) {
+        profilePositions.set(identity, results.length)
+        results.push(entity)
+      } else if (discoveryPriority(entity) > discoveryPriority(results[existingPosition])) {
+        results[existingPosition] = entity
+      }
+    }
+    return results
+  })()
   const visibleKeys = new Set(visibleMatches.map((entity) => entity.key))
   const visibleProfileNames = new Set(visibleMatches.flatMap((entity) => {
     const displayName = getCivilizationProfile(entity.key)?.displayName.trim().toLowerCase()
@@ -268,7 +303,25 @@ export function TerritoryPanel({
                   <p>Suggested by mapped proximity at this date, not a claim of direct contact.</p>
                 </section>
               )}
-              {datasetSource && <div className="map-source"><span>Map reconstruction</span><strong>{sourceYear === undefined ? 'Historical Basemaps' : formatYear(sourceYear)}</strong><a href={datasetSource} target="_blank" rel="noreferrer">Source dataset</a>{sourceCommit && <small>Revision {sourceCommit.slice(0, 8)}</small>}{license && <small>{license}</small>}</div>}
+              {(evidenceDatasets.length > 0 || datasetSource) && (
+                <div className="map-source source-stack">
+                  <span>Territory evidence</span>
+                  <strong>{evidenceDatasets.length > 1 ? `${evidenceDatasets.length} source collections` : evidenceDatasets[0]?.title || 'Historical Basemaps'}</strong>
+                  {sourceYear !== undefined && <small>Broad reconstruction frame: {formatYear(sourceYear)}</small>}
+                  {evidenceDatasets.length > 0 ? evidenceDatasets.map((dataset) => (
+                    <div className="map-source-entry" key={dataset.id}>
+                      <a href={dataset.source} target="_blank" rel="noreferrer">{dataset.title}</a>
+                      <small>{formatYear(dataset.coverage.startYear)}–{formatYear(dataset.coverage.endYear)} · {dataset.license} · {dataset.revision.value.slice(0, 8)}</small>
+                    </div>
+                  )) : (
+                    <>
+                      <a href={datasetSource} target="_blank" rel="noreferrer">Source dataset</a>
+                      {sourceCommit && <small>Revision {sourceCommit.slice(0, 8)}</small>}
+                      {license && <small>{license}</small>}
+                    </>
+                  )}
+                </div>
+              )}
             </>
           )}
         </article>

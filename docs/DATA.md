@@ -1,6 +1,6 @@
 # Historical data model
 
-Chrono Globe keeps the source data human-readable and replaceable. Each reconstruction is a GeoJSON `FeatureCollection` in `public/data/maps`, and `public/data/index.json` tells the app which snapshots exist.
+Chrono Globe keeps source data human-readable, replaceable, and independently attributable. Complete broad reconstructions live in `public/data/maps`; interval-based source packs live under `public/data/sources`; and `public/data/index.json` registers each territory collection. A reconstruction date is not an independent dataset.
 
 ## Snapshot index
 
@@ -11,13 +11,53 @@ Each index entry has:
   "year": -323,
   "filename": "maps/-323.geojson",
   "entities": 75,
-  "features": 75
+  "features": 75,
+  "datasetId": "historical-basemaps"
 }
 ```
 
 Negative years are BCE; positive years are CE. There is no year zero in the user interface.
 
-The index also contains a generated `entities` catalog. Each entry records the political key, regional aliases, source-map years, first and last appearance, largest mapped year, and maximum spherical area. It powers all-history search and visual-prominence estimates; it is not a population dataset.
+The index also contains a generated `entities` catalog. Each entry records the political key, regional aliases, source-map years, first and last **mapped** appearance, largest mapped year, and maximum spherical area. Those endpoints describe observations in the available reconstructions, not independently sourced foundation or dissolution dates. The catalog powers all-history search and visual-prominence estimates; it is not a population dataset.
+
+## Territory dataset registry
+
+Schema version 2 adds a territory-source registry. `territoryDatasets` records provenance separately from the dated snapshot list:
+
+```json
+{
+  "id": "historical-basemaps",
+  "title": "Historical Basemaps",
+  "sourceFamilyId": "historical-basemaps",
+  "source": "https://github.com/aourednik/historical-basemaps",
+  "license": "GPL-3.0",
+  "licenseUrl": "https://www.gnu.org/licenses/gpl-3.0.html",
+  "revision": { "kind": "git", "value": "<40-character commit>" },
+  "scope": "global",
+  "coverage": { "startYear": -123000, "endYear": 2010 },
+  "methodology": "Source-authored dated world reconstructions normalized to GeoJSON."
+}
+```
+
+The stable `id` links snapshots to provenance. `sourceFamilyId` identifies datasets derived from the same underlying work, so mirrors or repackagings cannot later be counted as independent corroboration. `revision` must pin a reproducible Git commit, named release, or checksum. `scope` is `global`, `regional`, or `entity`; `coverage` records the dataset's declared usable year range, while `methodology` is a concise disclosure rather than a machine-inferred claim.
+
+`defaultTerritoryDatasetId` identifies the broad fallback reconstruction. The legacy top-level `source`, `sourceCommit`, and `license` fields remain temporarily for compatibility and must exactly match that default registry entry. Registering a dataset never silently blends its polygons into another source.
+
+## Interval territory packs
+
+Seshat Cliopatria is stored in lazy 100-year packs under `public/data/sources/cliopatria`. One source assertion can appear in two adjacent packs when its inclusive validity interval crosses a century boundary. The runtime loads one pack, filters records with `FromYear <= selectedYear <= ToYear`, and hides `RELATION` records by default to avoid drawing overlapping alliances and composite relationships as ordinary states.
+
+The manifest records the pinned revision, source SHA-256, license, 508 real change dates, searchable entity history, per-pack counts and byte sizes, and geometry-repair statistics. The 165 MB upstream GeoJSON becomes roughly 67 MB of lazy runtime data; a visitor downloads only the relevant period. Modern packs are intentionally cached in a two-file window to constrain browser memory.
+
+The runtime commits the broad fallback, filtered interval assertions, and time-aware overlays as one dated frame. While another century pack is loading, the last complete frame stays interactive; playback cannot advance until the replacement frame has rendered. This prevents stale and newly requested territory geometry from appearing together.
+
+The Layers dialog offers:
+
+- **Combined atlas:** broad global coverage plus detailed assertions, with exact-name replacements and separately styled alternatives;
+- **Detailed polities:** Cliopatria only;
+- **Broad reconstruction:** Historical Basemaps only.
+
+Names are only joined when they match after Unicode/whitespace normalization. Wikidata and Seshat identifiers remain available for future reviewed entity reconciliation; the application does not fuzzy-merge similarly named states.
 
 ## Territory properties
 
@@ -44,13 +84,13 @@ npm run data:validate
 npm run check
 ```
 
-The sync script resolves and pins one upstream commit before downloading the index and every referenced GeoJSON file, so one refresh cannot mix revisions. It converts legacy Windows-1252 text to UTF-8 when necessary, trims and explicitly repairs known damaged property values, removes unusable unnamed features, copies the Natural Earth land topology, and records the pinned commit SHA.
+The current Historical Basemaps adapter resolves and pins one upstream commit before downloading the index and every referenced GeoJSON file, so one refresh cannot mix revisions. It converts legacy Windows-1252 text to UTF-8 when necessary, trims and explicitly repairs known damaged property values, removes unusable unnamed features, copies the Natural Earth land topology, and records the pinned commit in both the registry and compatibility fields.
 
 Entity chronology and spherical-area metadata are calculated from the cleaned full-precision geometry. Coordinate rounding happens only afterward, immediately before the smaller runtime snapshots are written.
 
 Review the resulting diff before committing. A source update can change names, geometry, counts, or the set of available years.
 
-`data:validate` checks all 53 GeoJSON files against the generated index, requires the expected source and license plus an immutable source commit, and rejects unusable geometry or excess runtime precision. It independently recomputes each snapshot's feature and unique-name counts, then reconstructs every canonical entity's chronology and alias set from the map files and requires the generated catalog to match exactly. It also checks curated profile aliases, event and story entity references, optional-layer records, duplicate identifiers, and HTTPS source URLs.
+`data:validate` checks all 53 broad GeoJSON files and all registered Cliopatria packs, requires every snapshot to reference a registered territory dataset, validates dataset IDs, source families, HTTPS sources, licenses, scope, methodology, immutable revisions, manifest counts, file sizes, interval-to-pack membership, unique source IDs, and geometry. It independently recomputes each broad snapshot's feature and unique-name counts, then reconstructs every canonical entity's chronology and alias set from the map files and requires the generated catalog to match exactly. It also checks curated profile aliases, event and story entity references, optional-layer records, duplicate identifiers, and HTTPS source URLs.
 
 Vitest adds semantic checks for curated events, places, routes, stories, profiles, and freely licensed media: valid date ranges and coordinates, exact story-to-event years, complete educational copy, unique identifiers and aliases, and attribution metadata. Both checks are offline and deterministic, so CI does not depend on source-site availability.
 
@@ -92,4 +132,12 @@ High-change periods such as 334–323 BCE, 1206–1279 CE, 1492–1700 CE, 1914�
 
 ## Adding a different source
 
-Do not turn new maps into globe textures. Normalize them to GeoJSON, preserve source and license metadata, map their attributes to the properties above, and add the snapshot to the index. The globe renderer does not care how the polygon was authored.
+Do not turn new maps into globe textures. Before importing geometry:
+
+1. Confirm that the source license permits redistribution and use alongside the application. A citation without compatible data rights is not enough.
+2. Create a registry entry with a stable ID, underlying source family, immutable revision, scope, coverage, and methodology note.
+3. Build a source-specific adapter rather than extending another source's cleanup rules by accident.
+4. Normalize its geometry to GeoJSON and retain the source's own feature identifier wherever possible.
+5. Link every emitted snapshot to its registry entry with `datasetId`.
+
+Every additional source must define an explicit selection or composition rule. Registering several sources must never silently union, average, or vote their conflicting boundaries into one polygon. Sources that map direct rule, tribute, claims, influence, or cultural extent are not interchangeable even when their dates and names match.
