@@ -1,4 +1,5 @@
 import { geoArea } from 'd3-geo'
+import polygonClipping, { type MultiPolygon as ClippingMultiPolygon, type Pair as ClippingPair } from 'polygon-clipping'
 import type { HistoricalEntityIndex, HistoricalFeature, HistoricalMap } from '../types'
 import { entityKey } from './entities'
 
@@ -42,6 +43,7 @@ export interface TemporalTerritoryManifest {
 interface TemporalProperties {
   datasetId?: string
   renderRole?: 'primary' | 'detail-replacement' | 'detail-alternative'
+  extentResolution?: 'neighbor-clipped'
   canonicalEntityKey?: string
   FromYear?: number
   ToYear?: number
@@ -51,6 +53,29 @@ interface TemporalProperties {
 }
 
 const temporalProperties = (feature: HistoricalFeature) => feature.properties as HistoricalFeature['properties'] & TemporalProperties
+const compositeFeatureCache = new WeakMap<HistoricalFeature[], WeakMap<HistoricalFeature[], Map<number | undefined, HistoricalFeature[]>>>()
+const preparedBaselineCache = new WeakMap<HistoricalFeature[], PreparedBaselineGeometry[]>()
+const clippedDetailCache = new WeakMap<HistoricalFeature, WeakMap<HistoricalFeature[], Map<string, HistoricalFeature | null>>>()
+const MAX_COMPOSITE_REPLACEMENT_GROUPS = 4
+
+const cachedCompositeFeatures = (baseline: HistoricalFeature[], detail: HistoricalFeature[], year: number | undefined) => (
+  compositeFeatureCache.get(baseline)?.get(detail)?.get(year)
+)
+
+const cacheCompositeFeatures = (baseline: HistoricalFeature[], detail: HistoricalFeature[], year: number | undefined, features: HistoricalFeature[]) => {
+  let detailCache = compositeFeatureCache.get(baseline)
+  if (!detailCache) {
+    detailCache = new WeakMap()
+    compositeFeatureCache.set(baseline, detailCache)
+  }
+  let yearCache = detailCache.get(detail)
+  if (!yearCache) {
+    yearCache = new Map()
+    detailCache.set(detail, yearCache)
+  }
+  yearCache.set(year, features)
+  return features
+}
 
 export const findTerritoryPack = (manifest: TemporalTerritoryManifest | null, year: number | undefined) => {
   if (!manifest || year === undefined || year < manifest.coverage.startYear || year > manifest.coverage.endYear) return null
@@ -158,6 +183,157 @@ const groupTerritories = (features: HistoricalFeature[]) => {
   return [...groups.values()]
 }
 
+interface GeometryBounds {
+  minLng: number
+  minLat: number
+  maxLng: number
+  maxLat: number
+}
+
+interface PreparedBaselineGeometry {
+  id: string
+  geometry: ClippingMultiPolygon
+  bounds: GeometryBounds
+  crossesAntimeridian: boolean
+}
+
+const clippingGeometry = (feature: HistoricalFeature): ClippingMultiPolygon | null => {
+  const geometry = feature.geometry
+  if (geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon') return null
+  const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates
+  return polygons.map((polygon) => polygon.map((ring) => ring.map((position) => [position[0], position[1]] as ClippingPair)))
+}
+
+const clippingGeometryBounds = (geometry: ClippingMultiPolygon): GeometryBounds => {
+  const bounds = { minLng: Infinity, minLat: Infinity, maxLng: -Infinity, maxLat: -Infinity }
+  for (const polygon of geometry) {
+    for (const ring of polygon) {
+      for (const [lng, lat] of ring) {
+        bounds.minLng = Math.min(bounds.minLng, lng)
+        bounds.minLat = Math.min(bounds.minLat, lat)
+        bounds.maxLng = Math.max(bounds.maxLng, lng)
+        bounds.maxLat = Math.max(bounds.maxLat, lat)
+      }
+    }
+  }
+  return bounds
+}
+
+const boundsOverlap = (left: GeometryBounds, right: GeometryBounds) => (
+  left.minLng < right.maxLng && left.maxLng > right.minLng
+  && left.minLat < right.maxLat && left.maxLat > right.minLat
+)
+
+const crossesAntimeridian = (geometry: ClippingMultiPolygon) => geometry.some((polygon) => polygon.some((ring) => ring.some((point, index) => {
+  const next = ring[index + 1]
+  return Boolean(next && Math.abs(next[0] - point[0]) > 180)
+})))
+
+const preparedBaselineGeometries = (features: HistoricalFeature[]) => {
+  const cached = preparedBaselineCache.get(features)
+  if (cached) return cached
+  const prepared = features.flatMap((feature) => {
+    const geometry = clippingGeometry(feature)
+    if (!geometry || geometry.length === 0) return []
+    return [{
+      id: normalizedIdentity(featureTerritoryName(feature)),
+      geometry,
+      bounds: clippingGeometryBounds(geometry),
+      crossesAntimeridian: crossesAntimeridian(geometry),
+    }]
+  })
+  preparedBaselineCache.set(features, prepared)
+  return prepared
+}
+
+const cachedClippedDetail = (feature: HistoricalFeature, baseline: HistoricalFeature[], matchedBaselineId: string) => {
+  const matchCache = clippedDetailCache.get(feature)?.get(baseline)
+  return matchCache?.has(matchedBaselineId) ? { found: true, feature: matchCache.get(matchedBaselineId) ?? null } : { found: false, feature: null }
+}
+
+const cacheClippedDetail = (
+  feature: HistoricalFeature,
+  baseline: HistoricalFeature[],
+  matchedBaselineId: string,
+  result: HistoricalFeature | null,
+) => {
+  let baselineCache = clippedDetailCache.get(feature)
+  if (!baselineCache) {
+    baselineCache = new WeakMap()
+    clippedDetailCache.set(feature, baselineCache)
+  }
+  let matchCache = baselineCache.get(baseline)
+  if (!matchCache) {
+    matchCache = new Map()
+    baselineCache.set(baseline, matchCache)
+  }
+  matchCache.set(matchedBaselineId, result)
+  return result
+}
+
+const clippedDetailFeature = (
+  feature: HistoricalFeature,
+  baselineFeatures: HistoricalFeature[],
+  preparedBaseline: PreparedBaselineGeometry[],
+  matchedBaselineId: string,
+) => {
+  const cached = cachedClippedDetail(feature, baselineFeatures, matchedBaselineId)
+  if (cached.found) return cached.feature
+  const subject = clippingGeometry(feature)
+  if (!subject || subject.length === 0 || crossesAntimeridian(subject)) {
+    return cacheClippedDetail(feature, baselineFeatures, matchedBaselineId, null)
+  }
+  const subjectBounds = clippingGeometryBounds(subject)
+  const blockers: ClippingMultiPolygon[] = []
+  for (const baselineFeature of preparedBaseline) {
+    if (baselineFeature.id === matchedBaselineId) continue
+    if (!boundsOverlap(subjectBounds, baselineFeature.bounds)) continue
+    // Planar clipping cannot safely unwrap a blocker that crosses the date
+    // line. Retain the broad source and show the detail as an outline instead.
+    if (baselineFeature.crossesAntimeridian) {
+      return cacheClippedDetail(feature, baselineFeatures, matchedBaselineId, null)
+    }
+    blockers.push(baselineFeature.geometry)
+  }
+  if (blockers.length === 0) return cacheClippedDetail(feature, baselineFeatures, matchedBaselineId, feature)
+
+  try {
+    const clipped = polygonClipping.difference(subject, ...blockers)
+    if (clipped.length === 0) return cacheClippedDetail(feature, baselineFeatures, matchedBaselineId, null)
+    // polygon-clipping follows standard planar GeoJSON winding. d3-geo and
+    // three-globe use the opposite spherical ring convention for these maps.
+    const coordinates = clipped.map((polygon) => polygon.map((ring) => [...ring].reverse()))
+    return cacheClippedDetail(feature, baselineFeatures, matchedBaselineId, {
+      ...feature,
+      properties: { ...feature.properties, extentResolution: 'neighbor-clipped' as const },
+      geometry: { type: 'MultiPolygon' as const, coordinates },
+    } as HistoricalFeature)
+  } catch {
+    // A malformed source ring must never make the whole historical frame fail.
+    // The caller retains the broad source and downgrades this detail to outline.
+    return cacheClippedDetail(feature, baselineFeatures, matchedBaselineId, null)
+  }
+}
+
+const replacementGroupsOverlap = (left: HistoricalFeature[], right: HistoricalFeature[]) => {
+  for (const leftFeature of left) {
+    const leftGeometry = clippingGeometry(leftFeature)
+    if (!leftGeometry || leftGeometry.length === 0) return true
+    const leftBounds = clippingGeometryBounds(leftGeometry)
+    for (const rightFeature of right) {
+      const rightGeometry = clippingGeometry(rightFeature)
+      if (!rightGeometry || rightGeometry.length === 0) return true
+      if (!boundsOverlap(leftBounds, clippingGeometryBounds(rightGeometry))) continue
+      try {
+        if (polygonClipping.intersection(leftGeometry, rightGeometry).length > 0) return true
+      } catch {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 const identityMatch = (baseline: TerritoryGroup, detail: TerritoryGroup, year: number | undefined) => {
   const baselineIdentity = comparisonIdentity(baseline.name)
   const detailIdentity = comparisonIdentity(detail.name)
@@ -205,19 +381,23 @@ export const composeTerritoryFeatures = (
   mode: TerritorySourceMode,
   year?: number,
 ) => {
+  if (mode === 'composite') {
+    const cached = cachedCompositeFeatures(baseline, cliopatria, year)
+    if (cached) return cached
+  }
   const baselineFeatures = baseline.map((feature) => taggedFeature(feature, 'historical-basemaps'))
   if (mode === 'historical-basemaps') return baselineFeatures
-  const detailFeatures = resolveCliopatriaHierarchy(
-    cliopatria.map((feature) => taggedFeature(feature, 'cliopatria')),
-    mode,
-  )
-  if (mode === 'cliopatria') return detailFeatures
-  if (detailFeatures.length === 0) return baselineFeatures
+  const detailFeatures = resolveCliopatriaHierarchy(cliopatria, mode)
+  if (mode === 'cliopatria') return detailFeatures.map((feature) => taggedFeature(feature, 'cliopatria'))
+  if (detailFeatures.length === 0) return mode === 'composite'
+    ? cacheCompositeFeatures(baseline, cliopatria, year, baselineFeatures)
+    : baselineFeatures
 
   const baselineGroups = groupTerritories(baselineFeatures)
   const detailGroups = groupTerritories(detailFeatures).sort((left, right) => right.area - left.area)
+  const preparedBaseline = preparedBaselineGeometries(baseline)
   const replacedBaselineIds = new Set<string>()
-  const matchedDetails = new Map<string, { canonicalKey: string }>()
+  const matchedDetails = new Map<string, { baselineId: string; canonicalKey: string }>()
 
   for (const detail of detailGroups) {
     let best: { baseline: TerritoryGroup; score: number; canonicalKey: string } | null = null
@@ -229,20 +409,45 @@ export const composeTerritoryFeatures = (
     }
     if (!best) continue
     replacedBaselineIds.add(best.baseline.id)
-    matchedDetails.set(detail.id, { canonicalKey: best.canonicalKey })
+    matchedDetails.set(detail.id, { baselineId: best.baseline.id, canonicalKey: best.canonicalKey })
   }
 
-  const fallbackFeatures = baselineFeatures.filter((feature) => !replacedBaselineIds.has(normalizedIdentity(featureTerritoryName(feature))))
-  const markedDetails = detailGroups.flatMap((group) => {
+  const replacementCandidates = new Map<string, { baselineId: string; canonicalKey: string; features: HistoricalFeature[] }>()
+  // Dense modern packs can contain dozens of equivalent assertions. Keep the
+  // combined overview responsive by promoting only the largest matched patches;
+  // every remaining assertion is still present as a selectable source outline,
+  // and Detailed polities continues to expose the complete filled collection.
+  const eligibleReplacementIds = new Set([...matchedDetails.keys()].slice(0, MAX_COMPOSITE_REPLACEMENT_GROUPS))
+  for (const group of detailGroups) {
+    if (!eligibleReplacementIds.has(group.id)) continue
     const match = matchedDetails.get(group.id)
-    return group.features.map((feature) => taggedFeature(
-      feature,
-      'cliopatria',
-      match ? 'detail-replacement' : 'detail-alternative',
-      match?.canonicalKey,
-    ))
+    if (!match) continue
+    const clipped = group.features.map((feature) => clippedDetailFeature(feature, baseline, preparedBaseline, match.baselineId))
+    if (clipped.some((feature) => !feature)) continue
+    replacementCandidates.set(group.id, { ...match, features: clipped as HistoricalFeature[] })
+  }
+
+  const conflictingDetailIds = new Set<string>()
+  const candidates = [...replacementCandidates.entries()]
+  for (let leftIndex = 0; leftIndex < candidates.length; leftIndex += 1) {
+    const [leftId, left] = candidates[leftIndex]
+    for (let rightIndex = leftIndex + 1; rightIndex < candidates.length; rightIndex += 1) {
+      const [rightId, right] = candidates[rightIndex]
+      if (!replacementGroupsOverlap(left.features, right.features)) continue
+      conflictingDetailIds.add(leftId)
+      conflictingDetailIds.add(rightId)
+    }
+  }
+
+  const successfulReplacementIds = new Set<string>()
+  const markedDetails = detailGroups.flatMap((group) => {
+    const replacement = conflictingDetailIds.has(group.id) ? undefined : replacementCandidates.get(group.id)
+    if (!replacement) return group.features.map((feature) => taggedFeature(feature, 'cliopatria', 'detail-alternative'))
+    successfulReplacementIds.add(replacement.baselineId)
+    return replacement.features.map((feature) => taggedFeature(feature, 'cliopatria', 'detail-replacement', replacement.canonicalKey))
   })
-  return [...fallbackFeatures, ...markedDetails]
+  const fallbackFeatures = baselineFeatures.filter((feature) => !successfulReplacementIds.has(normalizedIdentity(featureTerritoryName(feature))))
+  return cacheCompositeFeatures(baseline, cliopatria, year, [...fallbackFeatures, ...markedDetails])
 }
 
 export const mergeHistoricalEntityIndexes = (...catalogs: HistoricalEntityIndex[][]) => {

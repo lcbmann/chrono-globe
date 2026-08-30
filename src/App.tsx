@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, Database, GitCompareArrows, Globe2, Info, Layers3, LoaderCircle, Map as MapIcon, Menu, PanelRightOpen, Route, Share2, Sparkles, Volume2, VolumeX, X } from 'lucide-react'
+import { BookOpen, CalendarDays, Database, GitCompareArrows, Globe2, Info, Layers3, LoaderCircle, Map as MapIcon, Menu, PanelRightOpen, Route, Share2, Sparkles, Volume2, VolumeX, X } from 'lucide-react'
 import { ChangePanel } from './components/ChangePanel'
 import { CompareYearControl } from './components/CompareYearControl'
 import { GlobeErrorBoundary } from './components/GlobeErrorBoundary'
@@ -22,10 +22,9 @@ import { composeTerritoryFeatures, findTerritoryPack, mergeHistoricalEntityIndex
 import { buildPlaybackYears, buildTimelineYears, findNearestYearIndex, formatYear, getEraLabel, getPlaybackDelay, getSnapshotTransition, type PlaybackRate } from './lib/time'
 import { parseAtlasUrl, serializeAtlasUrl } from './lib/urlState'
 import { defaultGlobeViewpoint } from './lib/viewpoint'
-import type { ChangeSet, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute, Snapshot, TerritoryDataset } from './types'
+import type { ChangeSet, GlobeMode, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute, Snapshot, TerritoryDataset } from './types'
 import './App.css'
 
-type GlobeMode = 'atlas' | 'earth'
 type MapSide = 'primary' | 'comparison'
 interface FocusRequest { id: number; side: MapSide; frameId?: string; location?: { lat: number; lng: number } }
 const GlobeView = lazy(() => import('./components/GlobeView').then((module) => ({ default: module.GlobeView })))
@@ -891,8 +890,9 @@ function App() {
             <button type="button" className={changesOpen ? 'active' : ''} aria-pressed={changesOpen} onClick={() => { pausePlayback(); setChangesOpen((current) => !current); setMobileToolsOpen(false) }}><Route size={14} /> Changes</button>
           </nav>
           <div className="segmented-control" aria-label="Globe appearance">
-            <button type="button" className={globeMode === 'atlas' ? 'active' : ''} aria-pressed={globeMode === 'atlas'} onClick={() => { setGlobeMode('atlas'); setMobileToolsOpen(false) }} title="Atlas globe"><MapIcon size={14} /> Atlas</button>
-            <button type="button" className={globeMode === 'earth' ? 'active' : ''} aria-pressed={globeMode === 'earth'} onClick={() => { setGlobeMode('earth'); setMobileToolsOpen(false) }} title="Realistic Earth"><Globe2 size={14} /> Earth</button>
+            <button type="button" className={globeMode === 'atlas' ? 'active' : ''} aria-pressed={globeMode === 'atlas'} onClick={() => { setGlobeMode('atlas'); setMobileToolsOpen(false) }} title="Dark atlas with coordinate grid"><MapIcon size={14} /> Atlas</button>
+            <button type="button" className={globeMode === 'historical' ? 'active' : ''} aria-pressed={globeMode === 'historical'} onClick={() => { setGlobeMode('historical'); setMobileToolsOpen(false) }} title="Parchment-style historical globe"><BookOpen size={14} /> Parchment</button>
+            <button type="button" className={globeMode === 'earth' ? 'active' : ''} aria-pressed={globeMode === 'earth'} onClick={() => { setGlobeMode('earth'); setMobileToolsOpen(false) }} title="Satellite-style physical Earth"><Globe2 size={14} /> Earth</button>
           </div>
           <button type="button" className="header-icon-button" onClick={() => { toggleSound(); setMobileToolsOpen(false) }} aria-label={soundEnabled ? 'Mute ambient sound' : 'Enable ambient sound'} title={soundEnabled ? 'Mute ambient sound' : 'Enable subtle ambient sound'}>
             {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}<span className="mobile-action-label">{soundEnabled ? 'Mute sound' : 'Enable sound'}</span>

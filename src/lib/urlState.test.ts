@@ -42,4 +42,11 @@ describe('shareable atlas URL state', () => {
     expect(parseAtlasUrl(serializeAtlasUrl({ point: 'nan-madol-site' })).point).toBe('nan-madol-site')
     expect(parseAtlasUrl(serializeAtlasUrl({ route: 'pacific-voyaging' })).route).toBe('pacific-voyaging')
   })
+
+  it('round-trips the optional globe appearances without serializing the default', () => {
+    expect(parseAtlasUrl(serializeAtlasUrl({ mode: 'historical' })).mode).toBe('historical')
+    expect(parseAtlasUrl(serializeAtlasUrl({ mode: 'earth' })).mode).toBe('earth')
+    expect(serializeAtlasUrl({ mode: 'atlas' })).toBe('')
+    expect(parseAtlasUrl('?mode=unknown').mode).toBeUndefined()
+  })
 })

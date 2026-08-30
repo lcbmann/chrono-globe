@@ -7,7 +7,7 @@ This is a ground-up successor to a 2024 prototype that painted each historical s
 ## What it does
 
 - Combines 53 broad worldwide reconstructions with 13,765 independently sourced Seshat Cliopatria territory intervals and 508 documented change dates.
-- Offers a calm, overlap-safe combined view plus either territory collection independently, keeping alternative reconstructions as selectable sourced outlines instead of merging them into false certainty.
+- Offers a calm, overlap-safe combined view plus either territory collection independently: the largest reviewed detailed replacements are cut around surviving neighbouring territories, while the remaining source assertions stay visible as selectable outlines rather than slowing or cluttering the overview.
 - Starts at 323 BCE, preserving the original project's focus on Macedon and Alexander's empire.
 - Supports drag, zoom, click-to-inspect, alias-aware all-history civilization search, keyboard navigation, direct year entry, evidence markers, and fixed-view timelapse playback at three speeds.
 - Offers new visitors a skippable four-step introduction, suppresses it for shared deep links, and keeps it replayable from About.
@@ -22,7 +22,7 @@ This is a ground-up successor to a 2024 prototype that painted each historical s
 - Offers region, era, entity-type, and curated-profile discovery filters.
 - Uses a compact phone interface with one More menu, collapsible filters, separate browse and profile-reading modes, and only one live WebGL globe at a time.
 - Keeps creator, source-file, and license attribution beside every reused image; missing remote previews fall back to the source page without breaking the explorer.
-- Switches between a stylized atlas and a realistic NASA Blue Marble Earth.
+- Switches between a dark gridded atlas, a warm parchment-style historical globe, and a realistic NASA Blue Marble Earth.
 - Uses historically associated colors and stronger visual prominence for major polities.
 - Starts with subtle ambient audio after the visitor's first interaction, with a prominent mute control that remembers the visitor's preference.
 - Carries boundary-confidence metadata into the interface.

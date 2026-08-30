@@ -53,13 +53,13 @@ The runtime commits the broad fallback, filtered interval assertions, and time-a
 
 The Layers dialog offers:
 
-- **Combined atlas:** broad global coverage plus reviewed, time-scoped detailed replacements; unmatched second-source assertions remain selectable boundary outlines rather than overlapping fills;
+- **Combined atlas:** broad global coverage plus a bounded set of the largest reviewed, time-scoped detailed replacements cut around retained neighbouring territories; unmatched, unsafe, or deferred second-source assertions remain selectable boundary outlines rather than overlapping fills;
 - **Detailed polities:** Cliopatria only, showing active component polities instead of drawing a composite union over those same components;
 - **Broad reconstruction:** Historical Basemaps only.
 
 Feature-level names are joined when they match after Unicode/whitespace normalization or appear in the small reviewed, time-scoped identity registry. This registry currently covers high-confidence source variants such as Alexander's empire, ancient Armenia, the Mauryan Empire, and the Seleucid state. Discovery aliases, `SUBJECTO`, `MemberOf`, and shared Seshat identifiers are not treated as proof of identity because they can describe controllers, components, successors, or names reused in another era.
 
-Cliopatria composite assertions are identified through their explicit `Components`/`MemberOf` graph. The combined overview uses one aggregate level; the detailed-only view uses the active components. Raw source assertions and provenance remain unchanged in the bundled packs.
+Cliopatria composite assertions are identified through their explicit `Components`/`MemberOf` graph. The combined overview uses one aggregate level; the detailed-only view uses the active components. Replacement clipping is derived only for the combined display and tagged `extentResolution: "neighbor-clipped"`; raw source assertions and provenance remain unchanged in the bundled packs. Prepared baseline geometry and per-feature results are cached across years that reuse those records. To keep dense frames and playback responsive, the combined overview promotes at most four of the largest matched detail groups per frame; the rest remain source outlines and are all available as fills in Detailed polities. A final conflict pass downgrades intersecting replacement groups to their broad fills plus detailed outlines.
 
 ## Territory properties
 

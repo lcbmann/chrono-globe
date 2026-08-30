@@ -12,6 +12,7 @@ export interface HistoricalProperties {
   datasetId?: string
   sourceFeatureId?: string
   renderRole?: 'primary' | 'detail-replacement' | 'detail-alternative'
+  extentResolution?: 'neighbor-clipped'
   canonicalEntityKey?: string
   FromYear?: number
   ToYear?: number
@@ -237,6 +238,8 @@ export interface GlobeViewpoint {
   lng: number
   altitude: number
 }
+
+export type GlobeMode = 'atlas' | 'historical' | 'earth'
 
 export interface LabelDatum {
   lat: number

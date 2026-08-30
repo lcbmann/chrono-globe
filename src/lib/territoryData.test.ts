@@ -1,3 +1,6 @@
+import { geoContains } from 'd3-geo'
+import { readFileSync } from 'node:fs'
+import polygonClipping, { type MultiPolygon as ClippingMultiPolygon, type Pair as ClippingPair } from 'polygon-clipping'
 import { describe, expect, it } from 'vitest'
 import type { HistoricalEntityIndex, HistoricalFeature, HistoricalMap } from '../types'
 import { composeTerritoryFeatures, findTerritoryPack, mergeHistoricalEntityIndexes, territoriesForYear, type TemporalTerritoryManifest } from './territoryData'
@@ -15,6 +18,24 @@ const withProperties = (name: string, properties: Partial<HistoricalFeature['pro
   const item = feature(name, properties.datasetId, properties.FromYear ?? -100, properties.ToYear ?? 100, properties.Type ?? 'POLITY')
   return { ...item, properties: { ...item.properties, ...properties } } as HistoricalFeature
 }
+
+const boxFeature = (name: string, minLng: number, minLat: number, maxLng: number, maxLat: number, datasetId?: string) => ({
+  ...feature(name, datasetId),
+  geometry: {
+    type: 'Polygon' as const,
+    coordinates: [[
+      [minLng, minLat], [minLng, maxLat], [maxLng, maxLat], [maxLng, minLat], [minLng, minLat],
+    ]],
+  },
+}) as HistoricalFeature
+
+const clippingCoordinates = (feature: HistoricalFeature): ClippingMultiPolygon => {
+  if (feature.geometry.type !== 'Polygon' && feature.geometry.type !== 'MultiPolygon') return []
+  const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates
+  return polygons.map((polygon) => polygon.map((ring) => ring.map((position) => [position[0], position[1]] as ClippingPair)))
+}
+
+const readHistoricalMap = (relativePath: string) => JSON.parse(readFileSync(new URL(relativePath, import.meta.url), 'utf8')) as HistoricalMap
 
 const manifest = {
   coverage: { startYear: -3400, endYear: 2024 },
@@ -34,7 +55,11 @@ describe('temporal territory data', () => {
   })
 
   it('keeps unmatched baseline coverage while replacing exact-name duplicates in the combined view', () => {
-    const combined = composeTerritoryFeatures([feature('Roman Empire'), feature('Ainu')], [feature('Roman Empire', 'cliopatria')], 'composite')
+    const combined = composeTerritoryFeatures(
+      [boxFeature('Roman Empire', 0, 0, 1, 1), boxFeature('Ainu', 2, 0, 3, 1)],
+      [boxFeature('Roman Empire', 0, 0, 1, 1, 'cliopatria')],
+      'composite',
+    )
     expect(combined.map((item) => item.properties.NAME)).toEqual(['Ainu', 'Roman Empire'])
     expect((combined[0].properties as { datasetId?: string }).datasetId).toBe('historical-basemaps')
   })
@@ -75,9 +100,9 @@ describe('temporal territory data', () => {
   })
 
   it('replaces a matching territorial feature without removing other regions under the same controller', () => {
-    const chagatai = withProperties('Chagatai Khanate', { SUBJECTO: 'Mongol Empire' })
-    const greatKhanate = withProperties('Great Khanate', { SUBJECTO: 'Mongol Empire' })
-    const combined = composeTerritoryFeatures([chagatai, greatKhanate], [feature('Chagatai Khanate', 'cliopatria')], 'composite', 1300)
+    const chagatai = { ...boxFeature('Chagatai Khanate', 0, 0, 1, 1), properties: { ...withProperties('Chagatai Khanate', { SUBJECTO: 'Mongol Empire' }).properties } }
+    const greatKhanate = { ...boxFeature('Great Khanate', 2, 0, 3, 1), properties: { ...withProperties('Great Khanate', { SUBJECTO: 'Mongol Empire' }).properties } }
+    const combined = composeTerritoryFeatures([chagatai, greatKhanate], [boxFeature('Chagatai Khanate', 0, 0, 1, 1, 'cliopatria')], 'composite', 1300)
     expect(combined.map((item) => item.properties.NAME).sort()).toEqual(['Chagatai Khanate', 'Great Khanate'])
     expect(combined.find((item) => item.properties.NAME === 'Great Khanate')?.properties.datasetId).toBe('historical-basemaps')
     expect(combined.find((item) => item.properties.NAME === 'Chagatai Khanate')?.properties.datasetId).toBe('cliopatria')
@@ -86,6 +111,97 @@ describe('temporal territory data', () => {
   it('keeps unmatched detailed assertions as outlines in the combined view', () => {
     const combined = composeTerritoryFeatures([feature('Ainu')], [feature('Kingdom of Armenia', 'cliopatria')], 'composite', -323)
     expect(combined.find((item) => item.properties.NAME === 'Kingdom of Armenia')?.properties.renderRole).toBe('detail-alternative')
+  })
+
+  it('clips a detailed replacement around neighbouring baseline territories', () => {
+    const broadAlexander = boxFeature('Empire of Alexander', 0, 0, 10, 10)
+    const cappadocia = boxFeature('Cappadocia', 0, 8, 4, 12)
+    const detailedAlexander = boxFeature('(Macedonian Empire)', 0, 0, 12, 12, 'cliopatria')
+    const combined = composeTerritoryFeatures([broadAlexander, cappadocia], [detailedAlexander], 'composite', -323)
+    const replacement = combined.find((item) => item.properties.datasetId === 'cliopatria')
+
+    expect(replacement?.properties.renderRole).toBe('detail-replacement')
+    expect(replacement?.properties.extentResolution).toBe('neighbor-clipped')
+    expect(combined.some((item) => item.properties.NAME === 'Cappadocia')).toBe(true)
+    expect(geoContains(replacement!, [2, 9])).toBe(false)
+    expect(geoContains(replacement!, [6, 9])).toBe(true)
+  })
+
+  it('falls back to the broad source when any replacement member crosses the antimeridian', () => {
+    const broad = boxFeature('Empire of Alexander', 0, 0, 10, 10)
+    const safeDetail = boxFeature('(Macedonian Empire)', 0, 0, 10, 10, 'cliopatria')
+    const datelineDetail = {
+      ...safeDetail,
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [[[170, -5], [170, 5], [-170, 5], [-170, -5], [170, -5]]],
+      },
+    } as HistoricalFeature
+    const combined = composeTerritoryFeatures([broad], [safeDetail, datelineDetail], 'composite', -323)
+
+    expect(combined.find((item) => item.properties.datasetId === 'historical-basemaps')?.properties.NAME).toBe('Empire of Alexander')
+    expect(combined.filter((item) => item.properties.datasetId === 'cliopatria')).toHaveLength(2)
+    expect(combined.filter((item) => item.properties.datasetId === 'cliopatria').every((item) => item.properties.renderRole === 'detail-alternative')).toBe(true)
+  })
+
+  it('downgrades detailed replacements that conflict outside their broad source cells', () => {
+    const broadWest = boxFeature('Western Realm', 0, 0, 4, 4)
+    const broadEast = boxFeature('Eastern Realm', 8, 0, 12, 4)
+    const detailedWest = boxFeature('Western Realm', 0, 0, 7, 4, 'cliopatria')
+    const detailedEast = boxFeature('Eastern Realm', 5, 0, 12, 4, 'cliopatria')
+    const combined = composeTerritoryFeatures([broadWest, broadEast], [detailedWest, detailedEast], 'composite', 400)
+
+    expect(combined.filter((item) => item.properties.datasetId === 'historical-basemaps')).toHaveLength(2)
+    expect(combined.filter((item) => item.properties.renderRole === 'detail-replacement')).toHaveLength(0)
+    expect(combined.filter((item) => item.properties.renderRole === 'detail-alternative')).toHaveLength(2)
+  })
+
+  it('bounds filled detailed replacements in dense combined frames', () => {
+    const baseline = Array.from({ length: 10 }, (_, index) => boxFeature(`Realm ${index}`, index * 2, 0, index * 2 + 1, 1))
+    const detailed = Array.from({ length: 10 }, (_, index) => boxFeature(`Realm ${index}`, index * 2, 0, index * 2 + 1, 1, 'cliopatria'))
+    const combined = composeTerritoryFeatures(baseline, detailed, 'composite', 1900)
+
+    expect(combined.filter((item) => item.properties.renderRole === 'detail-replacement')).toHaveLength(4)
+    expect(combined.filter((item) => item.properties.renderRole === 'detail-alternative')).toHaveLength(6)
+    expect(combined.filter((item) => item.properties.datasetId === 'historical-basemaps')).toHaveLength(6)
+  })
+
+  it('keeps the real 323 BCE combined ownership surface disjoint around Alexander and Armenia', () => {
+    const baseline = readHistoricalMap('../../public/data/maps/-323.geojson').features
+    const detailedMap = readHistoricalMap('../../public/data/sources/cliopatria/packs/-400.geojson')
+    const detailed = territoriesForYear(detailedMap, -323)
+    const combined = composeTerritoryFeatures(baseline, detailed, 'composite', -323)
+    const byName = (name: string) => combined.find((item) => item.properties.NAME === name)!
+    const alexander = combined.find((item) => item.properties.canonicalEntityKey === 'Empire of Alexander')!
+    const armenia = combined.find((item) => item.properties.canonicalEntityKey === 'Armenia')!
+
+    expect(alexander.properties.extentResolution).toBe('neighbor-clipped')
+    expect(armenia.properties.extentResolution).toBe('neighbor-clipped')
+    for (const neighbor of [byName('Cappadocia'), byName('Atropatene')]) {
+      expect(polygonClipping.intersection(clippingCoordinates(alexander), clippingCoordinates(neighbor))).toHaveLength(0)
+    }
+    for (const neighbor of [byName('Atropatene'), byName('Colchis')]) {
+      expect(polygonClipping.intersection(clippingCoordinates(armenia), clippingCoordinates(neighbor))).toHaveLength(0)
+    }
+  })
+
+  it('falls back for the known cross-replacement conflicts in real source frames', () => {
+    const cases = [
+      { year: -200, map: '-200.geojson', pack: '-200.geojson', names: ['Ptolemaic Kingdom', 'Carthage'] },
+      { year: 400, map: '400.geojson', pack: '400.geojson', names: ['Western Roman Empire', 'Eastern Roman Empire'] },
+      { year: 1400, map: '1400.geojson', pack: '1400.geojson', names: ['Timurid Empire', 'Blue Horde'] },
+    ]
+
+    for (const item of cases) {
+      const baseline = readHistoricalMap(`../../public/data/maps/${item.map}`).features
+      const detailed = territoriesForYear(readHistoricalMap(`../../public/data/sources/cliopatria/packs/${item.pack}`), item.year)
+      const combined = composeTerritoryFeatures(baseline, detailed, 'composite', item.year)
+      for (const name of item.names) {
+        expect(combined.some((feature) => feature.properties.NAME === name && feature.properties.datasetId === 'historical-basemaps')).toBe(true)
+        expect(combined.some((feature) => feature.properties.NAME === name && feature.properties.renderRole === 'detail-replacement')).toBe(false)
+        expect(combined.some((feature) => feature.properties.NAME === name && feature.properties.renderRole === 'detail-alternative')).toBe(true)
+      }
+    }
   })
 
   it('merges exact entity histories without inventing intermediate observation years', () => {

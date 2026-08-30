@@ -34,7 +34,7 @@ npm run check
 - `POLITY` and `RELATION` records are both retained and remain distinguishable through `Type`.
 - Original `Wikipedia`, `Wikidata`, `SeshatID`, `Components`, `MemberOf`, `Area`, `FromYear`, and `ToYear` values are preserved.
 - Each record receives a deterministic source-feature identifier and `datasetId: "cliopatria"`.
-- Coordinates are rounded to three decimal degrees, rings are checked, and winding is repaired for the globe renderer. No polygon simplification or cross-source geometry fusion occurs.
+- Coordinates are rounded to three decimal degrees, rings are checked, and winding is repaired for the globe renderer. No polygon simplification or cross-source geometry fusion occurs during import; the combined view can derive a temporary neighbour-clipped display polygon without changing this source pack.
 - Because Cliopatria does not supply per-feature boundary confidence, every imported boundary is conservatively marked approximate (`BORDERPRECISION: 1`).
 - The compact manifest contains all entity names, source change years, interval coverage, checksums, pack counts, and geometry-repair counts so search and timelines do not need to load every polygon pack.
 

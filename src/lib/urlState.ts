@@ -1,5 +1,5 @@
 import { defaultLayers } from '../data/layers'
-import type { GlobeViewpoint, LayerVisibility } from '../types'
+import type { GlobeMode, GlobeViewpoint, LayerVisibility } from '../types'
 
 export interface AtlasUrlState {
   year?: number
@@ -7,7 +7,7 @@ export interface AtlasUrlState {
   event?: string
   point?: string
   route?: string
-  mode?: 'atlas' | 'earth'
+  mode?: GlobeMode
   compareYear?: number
   side?: 'comparison'
   story?: string
@@ -34,6 +34,7 @@ const nonNegativeInteger = (value: string | null) => {
 
 export const parseAtlasUrl = (search: string): AtlasUrlState => {
   const params = new URLSearchParams(search)
+  const requestedMode = params.get('mode')
   const enabledLayers = new Set((params.get('layers') || '').split(',').filter(Boolean))
   const hasLayers = params.has('layers')
   const lat = numberInRange(params.get('lat'), -90, 90)
@@ -45,7 +46,7 @@ export const parseAtlasUrl = (search: string): AtlasUrlState => {
     event: params.get('event') || undefined,
     point: params.get('point') || undefined,
     route: params.get('route') || undefined,
-    mode: params.get('mode') === 'earth' ? 'earth' : undefined,
+    mode: requestedMode === 'earth' || requestedMode === 'historical' ? requestedMode : undefined,
     compareYear: finiteNumber(params.get('compare')),
     side: params.get('side') === 'comparison' ? 'comparison' : undefined,
     story: params.get('story') || undefined,
@@ -62,7 +63,7 @@ export const serializeAtlasUrl = (state: AtlasUrlState) => {
   if (state.event) params.set('event', state.event)
   if (state.point) params.set('point', state.point)
   if (state.route) params.set('route', state.route)
-  if (state.mode === 'earth') params.set('mode', 'earth')
+  if (state.mode && state.mode !== 'atlas') params.set('mode', state.mode)
   if (state.compareYear !== undefined) params.set('compare', String(state.compareYear))
   if (state.compareYear !== undefined && state.side === 'comparison') params.set('side', 'comparison')
   if (state.story) params.set('story', state.story)

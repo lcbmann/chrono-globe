@@ -12,7 +12,7 @@ import { buildMarkerOffsets } from '../lib/markers'
 import type { TerritorySourceMode } from '../lib/territoryData'
 import { formatYear } from '../lib/time'
 import { defaultGlobeViewpoint } from '../lib/viewpoint'
-import type { ChangeKind, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute } from '../types'
+import type { ChangeKind, GlobeMode, GlobeViewpoint, HistoricalEntityIndex, HistoricalEvent, HistoricalFeature, HistoricalPoint, HistoricalRoute } from '../types'
 
 interface LandProperties { __layer: 'land' }
 type LandFeature = Feature<Geometry, LandProperties>
@@ -49,7 +49,7 @@ interface GlobeViewProps {
   selectedEvent: HistoricalEvent | null
   selectedPoint?: HistoricalPoint | null
   selectedRoute?: HistoricalRoute | null
-  mode: 'atlas' | 'earth'
+  mode: GlobeMode
   territorySourceMode?: TerritorySourceMode
   showChanges?: boolean
   changeKinds?: Map<string, ChangeKind>
@@ -110,6 +110,7 @@ const precisionLabel = (precision: number | null) => precision === 3 ? 'Well doc
 const sourceProperties = (feature: HistoricalFeature) => feature.properties as HistoricalFeature['properties'] & {
   datasetId?: string
   renderRole?: 'primary' | 'detail-replacement' | 'detail-alternative'
+  extentResolution?: 'neighbor-clipped'
   FromYear?: number
   ToYear?: number
 }
@@ -257,6 +258,12 @@ function GlobeViewComponent({
     color: new Color('#ffffff'),
     shininess: 32,
     specular: new Color('#182a31'),
+  } : mode === 'historical' ? {
+    color: new Color('#c6a66d'),
+    emissive: new Color('#2a1b0e'),
+    emissiveIntensity: .16,
+    shininess: 4,
+    specular: new Color('#715a37'),
   } : {
     color: new Color('#071a23'), emissive: new Color('#031017'), emissiveIntensity: .38, shininess: 18, specular: new Color('#2b7888'),
   }), [mode])
@@ -413,8 +420,14 @@ function GlobeViewComponent({
     if (!ready) return
     const globe = globeRef.current
     if (!globe) return
-    const ambient = new AmbientLight(mode === 'earth' ? '#c4d0d2' : '#9bc1c8', mode === 'earth' ? 1.25 : 1.35)
-    const directional = new DirectionalLight('#fff0ce', mode === 'earth' ? 1.55 : 2.8)
+    const ambient = new AmbientLight(
+      mode === 'earth' ? '#c4d0d2' : mode === 'historical' ? '#e4c994' : '#9bc1c8',
+      mode === 'earth' ? 1.25 : mode === 'historical' ? 1.55 : 1.35,
+    )
+    const directional = new DirectionalLight(
+      mode === 'historical' ? '#ffe6b0' : '#fff0ce',
+      mode === 'earth' ? 1.55 : mode === 'historical' ? 1.9 : 2.8,
+    )
     directional.position.set(-180, 120, 160)
     globe.lights([ambient, directional])
   }, [mode, ready])
@@ -448,7 +461,7 @@ function GlobeViewComponent({
     const keyOrder = entityKey(left).localeCompare(entityKey(right))
     return keyOrder || (left.properties.NAME || '').localeCompare(right.properties.NAME || '')
   }), [visualFeatures])
-  const polygons = useMemo<RenderPolygon[]>(() => mode === 'atlas' ? [...land, ...orderedFeatures] : orderedFeatures, [land, mode, orderedFeatures])
+  const polygons = useMemo<RenderPolygon[]>(() => mode === 'earth' ? orderedFeatures : [...land, ...orderedFeatures], [land, mode, orderedFeatures])
   useEffect(() => {
     const visiblePolygons = new Set(polygons)
     for (const [polygon, material] of polygonCapMaterialsRef.current) {
@@ -549,30 +562,37 @@ function GlobeViewComponent({
     const assertedRange = Number.isInteger(properties.FromYear) && Number.isInteger(properties.ToYear)
       ? ` · ${formatYear(properties.FromYear!)}–${formatYear(properties.ToYear!)}`
       : ''
-    return `<div class="globe-tooltip"><strong>${escapeHtml(key)}</strong>${regional}<span>${precisionLabel(feature.properties.BORDERPRECISION)}${changeCopy}</span><span>Source: ${source}${assertedRange}</span></div>`
+    const reconciled = properties.extentResolution === 'neighbor-clipped'
+      ? '<span>Combined view: overlap reconciled with neighbouring territories</span>'
+      : ''
+    return `<div class="globe-tooltip"><strong>${escapeHtml(key)}</strong>${regional}<span>${precisionLabel(feature.properties.BORDERPRECISION)}${changeCopy}</span><span>Source: ${source}${assertedRange}</span>${reconciled}</div>`
   }, [changeKinds, showChanges])
 
   const polygonAltitude = useCallback((object: object) => {
     const feature = historicalFeature(object as RenderPolygon)
     if (!feature) return .003
     const key = entityKey(feature)
-    if (key === selectedKey) return .012
-    // Source reconstructions can intentionally contain overlapping or even
-    // duplicate extents. A tiny stable offset separates coincident surfaces;
-    // transparent caps also disable depth writes below so overlaps stay visible.
-    const sourceOffset = featureDatasetId(feature) === 'cliopatria' ? .0026 : 0
-    return .0052 + sourceOffset + prominence(feature) * .00135 + stableLayerRank(key) * .0000025
-  }, [prominence, selectedKey])
+    const alternativeOutline = territorySourceMode === 'composite'
+      && sourceProperties(feature).renderRole === 'detail-alternative'
+    // Ordinary territories share one visual surface. The microscopic stable
+    // epsilon prevents coincident-edge shimmer without creating visible
+    // terraces or camera-angle parallax between data sources.
+    return .0052 + (alternativeOutline ? .00035 : 0) + stableLayerRank(key) * .0000001
+  }, [territorySourceMode])
   const polygonCapStyle = useCallback((object: object) => {
     const feature = historicalFeature(object as RenderPolygon)
-    if (!feature) return { color: '#2b3f36', alpha: .96, depthWrite: true }
+    if (!feature) return mode === 'historical'
+      ? { color: '#786344', alpha: .94, depthWrite: true }
+      : { color: '#2b3f36', alpha: .96, depthWrite: true }
     const importance = prominence(feature)
     const selected = entityKey(feature) === selectedKey
     const properties = sourceProperties(feature)
     const alternativeDetail = territorySourceMode === 'composite' && properties.renderRole === 'detail-alternative'
     const baseAlpha = selected ? .98 : alternativeDetail
       ? 0
-      : mode === 'earth' ? .1 + importance * .52 : .18 + importance * .76
+      : mode === 'earth' ? .1 + importance * .52
+        : mode === 'historical' ? .28 + importance * .66
+          : .18 + importance * .76
     const key = entityKey(feature)
     const color = showChanges ? changeColors[changeKinds?.get(key) || 'stable'] : entityColor(key)
     return { color, alpha: baseAlpha, depthWrite: selected }
@@ -604,15 +624,19 @@ function GlobeViewComponent({
   }, [changeKinds, selectedKey, showChanges])
   const polygonStrokeColor = useCallback((object: object) => {
     const feature = historicalFeature(object as RenderPolygon)
-    if (!feature) return 'rgba(130, 159, 140, 0.2)'
+    if (!feature) return mode === 'historical' ? 'rgba(68, 45, 27, .46)' : 'rgba(130, 159, 140, 0.2)'
     const importance = prominence(feature)
     if (territorySourceMode === 'composite' && sourceProperties(feature).renderRole === 'detail-alternative') {
       return `rgba(104, 204, 204, ${.3 + importance * .52})`
     }
     if (importance < (size.width < 620 ? .24 : .16)) return ''
+    if (mode === 'historical') {
+      const alpha = importance > .78 ? .88 : .18 + importance * .4
+      return `rgba(70, 43, 25, ${alpha})`
+    }
     const alpha = importance > .78 ? .9 : .08 + importance * .34
     return importance > .78 ? `rgba(255, 239, 196, ${alpha})` : `rgba(255, 247, 220, ${alpha})`
-  }, [prominence, size.width, territorySourceMode])
+  }, [mode, prominence, size.width, territorySourceMode])
   const handlePolygonClick = useCallback((object: object) => {
     const polygon = object as RenderPolygon
     const feature = historicalFeature(polygon)
@@ -650,12 +674,14 @@ function GlobeViewComponent({
         height={size.height}
         backgroundColor="rgba(0,0,0,0)"
         globeMaterial={globeMaterial}
-        globeImageUrl={mode === 'earth' ? `${import.meta.env.BASE_URL}textures/earth-blue-marble.jpg` : undefined}
+        globeImageUrl={mode === 'earth'
+          ? `${import.meta.env.BASE_URL}textures/earth-blue-marble.jpg`
+          : mode === 'historical' ? `${import.meta.env.BASE_URL}textures/historical-parchment.svg` : undefined}
         bumpImageUrl={mode === 'earth' ? `${import.meta.env.BASE_URL}textures/earth-topology.png` : undefined}
         showGraticules={mode === 'atlas'}
         showAtmosphere
-        atmosphereColor={mode === 'earth' ? '#68afd0' : '#65bfd0'}
-        atmosphereAltitude={mode === 'earth' ? .11 : .15}
+        atmosphereColor={mode === 'earth' ? '#68afd0' : mode === 'historical' ? '#c89854' : '#65bfd0'}
+        atmosphereAltitude={mode === 'earth' ? .11 : mode === 'historical' ? .075 : .15}
         polygonsData={polygons}
         polygonGeoJsonGeometry={polygonGeometry}
         polygonAltitude={polygonAltitude}

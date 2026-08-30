@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1024" viewBox="0 0 2048 1024">
+  <defs>
+    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b8945f"/>
+      <stop offset="0.42" stop-color="#d2b77f"/>
+      <stop offset="1" stop-color="#a98250"/>
+    </linearGradient>
+    <filter id="paper" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.012 0.055" numOctaves="4" seed="23" result="grain"/>
+      <feColorMatrix in="grain" type="saturate" values="0" result="gray"/>
+      <feBlend in="SourceGraphic" in2="gray" mode="soft-light"/>
+    </filter>
+    <radialGradient id="stain">
+      <stop offset="0" stop-color="#6f4726" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#6f4726" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="fibres" width="96" height="64" patternUnits="userSpaceOnUse">
+      <path d="M-8 18 Q23 11 54 20 T104 16M-12 52 Q28 45 70 54 T108 48" fill="none" stroke="#f1d9a2" stroke-opacity=".08" stroke-width="1"/>
+      <path d="M8 -8 Q15 24 10 72M76 -8 Q70 22 81 72" fill="none" stroke="#684222" stroke-opacity=".05" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="2048" height="1024" fill="url(#base)" filter="url(#paper)"/>
+  <rect width="2048" height="1024" fill="url(#fibres)"/>
+  <ellipse cx="310" cy="220" rx="260" ry="190" fill="url(#stain)"/>
+  <ellipse cx="1630" cy="760" rx="360" ry="240" fill="url(#stain)" opacity=".6"/>
+  <path d="M0 34 Q390 76 720 35 T1410 51 T2048 24M0 986 Q430 950 820 989 T1530 976 T2048 994" fill="none" stroke="#5f3d23" stroke-opacity=".12" stroke-width="4"/>
+</svg>
