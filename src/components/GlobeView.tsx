@@ -259,11 +259,11 @@ function GlobeViewComponent({
     shininess: 32,
     specular: new Color('#182a31'),
   } : mode === 'historical' ? {
-    color: new Color('#c6a66d'),
-    emissive: new Color('#2a1b0e'),
-    emissiveIntensity: .16,
-    shininess: 4,
-    specular: new Color('#715a37'),
+    color: new Color('#f2e4c9'),
+    emissive: new Color('#120d08'),
+    emissiveIntensity: .03,
+    shininess: .5,
+    specular: new Color('#120d08'),
   } : {
     color: new Color('#071a23'), emissive: new Color('#031017'), emissiveIntensity: .38, shininess: 18, specular: new Color('#2b7888'),
   }), [mode])
@@ -422,11 +422,11 @@ function GlobeViewComponent({
     if (!globe) return
     const ambient = new AmbientLight(
       mode === 'earth' ? '#c4d0d2' : mode === 'historical' ? '#e4c994' : '#9bc1c8',
-      mode === 'earth' ? 1.25 : mode === 'historical' ? 1.55 : 1.35,
+      mode === 'earth' ? 1.25 : mode === 'historical' ? .92 : 1.35,
     )
     const directional = new DirectionalLight(
-      mode === 'historical' ? '#ffe6b0' : '#fff0ce',
-      mode === 'earth' ? 1.55 : mode === 'historical' ? 1.9 : 2.8,
+      mode === 'historical' ? '#f6e4be' : '#fff0ce',
+      mode === 'earth' ? 1.55 : mode === 'historical' ? .55 : 2.8,
     )
     directional.position.set(-180, 120, 160)
     globe.lights([ambient, directional])
@@ -582,16 +582,16 @@ function GlobeViewComponent({
   const polygonCapStyle = useCallback((object: object) => {
     const feature = historicalFeature(object as RenderPolygon)
     if (!feature) return mode === 'historical'
-      ? { color: '#786344', alpha: .94, depthWrite: true }
+      ? { color: '#5e5038', alpha: .14, depthWrite: false }
       : { color: '#2b3f36', alpha: .96, depthWrite: true }
     const importance = prominence(feature)
     const selected = entityKey(feature) === selectedKey
     const properties = sourceProperties(feature)
     const alternativeDetail = territorySourceMode === 'composite' && properties.renderRole === 'detail-alternative'
-    const baseAlpha = selected ? .98 : alternativeDetail
+    const baseAlpha = selected ? (mode === 'historical' ? .9 : .98) : alternativeDetail
       ? 0
       : mode === 'earth' ? .1 + importance * .52
-        : mode === 'historical' ? .28 + importance * .66
+        : mode === 'historical' ? .24 + importance * .38
           : .18 + importance * .76
     const key = entityKey(feature)
     const color = showChanges ? changeColors[changeKinds?.get(key) || 'stable'] : entityColor(key)
@@ -676,12 +676,12 @@ function GlobeViewComponent({
         globeMaterial={globeMaterial}
         globeImageUrl={mode === 'earth'
           ? `${import.meta.env.BASE_URL}textures/earth-blue-marble.jpg`
-          : mode === 'historical' ? `${import.meta.env.BASE_URL}textures/historical-parchment.svg` : undefined}
+          : mode === 'historical' ? `${import.meta.env.BASE_URL}textures/historical-parchment.jpg` : undefined}
         bumpImageUrl={mode === 'earth' ? `${import.meta.env.BASE_URL}textures/earth-topology.png` : undefined}
         showGraticules={mode === 'atlas'}
         showAtmosphere
-        atmosphereColor={mode === 'earth' ? '#68afd0' : mode === 'historical' ? '#c89854' : '#65bfd0'}
-        atmosphereAltitude={mode === 'earth' ? .11 : mode === 'historical' ? .075 : .15}
+        atmosphereColor={mode === 'earth' ? '#68afd0' : mode === 'historical' ? '#8f7147' : '#65bfd0'}
+        atmosphereAltitude={mode === 'earth' ? .11 : mode === 'historical' ? .035 : .15}
         polygonsData={polygons}
         polygonGeoJsonGeometry={polygonGeometry}
         polygonAltitude={polygonAltitude}

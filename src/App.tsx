@@ -1136,6 +1136,7 @@ function App() {
             <button type="button" className="about-introduction-button" onClick={replayIntroduction}><Sparkles size={14} /> Replay the introduction</button>
             <a href={index?.source || 'https://github.com/aourednik/historical-basemaps'} target="_blank" rel="noreferrer">Historical Basemaps data &amp; credits</a>
             <a href="https://github.com/Seshat-Global-History-Databank/cliopatria" target="_blank" rel="noreferrer">Seshat Cliopatria data &amp; credits</a>
+            <a href="https://commons.wikimedia.org/wiki/File:Old_paper7.jpg" target="_blank" rel="noreferrer">Public-domain old-paper texture · Digital Yard Sale</a>
             <a href="https://science.nasa.gov/earth/earth-observatory/history-of-the-blue-marble/" target="_blank" rel="noreferrer">NASA Blue Marble imagery</a>
           </section>
         </div>
