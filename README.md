@@ -91,7 +91,7 @@ The territory registry contains two independently packaged boundary collections.
 
 The physical land silhouette is derived from [Natural Earth](https://www.naturalearthdata.com/) through the [`world-atlas`](https://github.com/topojson/world-atlas) TopoJSON package. Natural Earth data is in the public domain; `world-atlas` is ISC licensed.
 
-Parchment mode uses a seamless, pole-safe derivative of the genuine 600-dpi [`Old paper7.jpg`](https://commons.wikimedia.org/wiki/File:Old_paper7.jpg) scan from Digital Yard Sale. The source was released into the public domain worldwide; Chrono Globe crops, mirrors, resizes, and softly averages the polar rows for equirectangular globe mapping.
+Parchment mode uses 4K desktop and 2K compact derivatives of Iroi su's genuine 6,927 × 4,441 old-paper photograph, [`Текстура бумаги.jpg`](https://commons.wikimedia.org/wiki/File:%D0%A2%D0%B5%D0%BA%D1%81%D1%82%D1%83%D1%80%D0%B0_%D0%B1%D1%83%D0%BC%D0%B0%D0%B3%D0%B8.jpg), released under CC0. Chrono Globe crops and color-grades the photograph, feathers its longitude seam, and softly averages only the polar rows for artifact-free equirectangular mapping.
 
 Realistic mode uses locally vendored [NASA Blue Marble](https://science.nasa.gov/earth/earth-observatory/history-of-the-blue-marble/) Earth imagery and a terrain bump texture copied from the MIT-licensed [`three-globe`](https://github.com/vasturiano/three-globe) example assets. NASA imagery is used under NASA's [media usage guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/); NASA does not endorse this project.
 

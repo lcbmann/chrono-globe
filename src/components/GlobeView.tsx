@@ -2,9 +2,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject
 import { geoArea, geoCentroid } from 'd3-geo'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
 import { feature as topojsonFeature } from 'topojson-client'
-import { AmbientLight, Color, DirectionalLight, DoubleSide, MeshBasicMaterial, MeshPhongMaterial } from 'three'
+import { AmbientLight, ClampToEdgeWrapping, Color, DirectionalLight, DoubleSide, LinearFilter, LinearMipmapLinearFilter, MeshBasicMaterial, MeshPhongMaterial, RepeatWrapping } from 'three'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { GeometryCollection, Topology } from 'topojson-specification'
+import historicalParchment2kUrl from '../assets/textures/historical-parchment-2k.jpg'
+import historicalParchment4kUrl from '../assets/textures/historical-parchment-4k.jpg'
 import { getCivilizationProfile } from '../data/civilizations'
 import { changeColors, changeLabels } from '../lib/changes'
 import { entityColor, entityKey, escapeHtml } from '../lib/entities'
@@ -230,6 +232,9 @@ function GlobeViewComponent({
   const [size, setSize] = useState({ width: 900, height: 700 })
   const [land, setLand] = useState<LandFeature[]>([])
   const [ready, setReady] = useState(false)
+  const [historicalTextureUrl] = useState(() => window.matchMedia(compactRendererMedia).matches
+    ? historicalParchment2kUrl
+    : historicalParchment4kUrl)
   const [visualFeatures, setVisualFeatures] = useState(features)
   const [visibleFrameId, setVisibleFrameId] = useState(frameId)
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
@@ -259,7 +264,7 @@ function GlobeViewComponent({
     shininess: 32,
     specular: new Color('#182a31'),
   } : mode === 'historical' ? {
-    color: new Color('#f2e4c9'),
+    color: new Color('#fffaf0'),
     emissive: new Color('#120d08'),
     emissiveIntensity: .03,
     shininess: .5,
@@ -272,6 +277,31 @@ function GlobeViewComponent({
     globeMaterial.bumpMap?.dispose()
     globeMaterial.dispose()
   }, [globeMaterial])
+
+  useEffect(() => {
+    if (mode !== 'historical') return
+    let frame: number | null = null
+    let attempts = 0
+    const configureTexture = () => {
+      const globe = globeRef.current
+      const texture = globeMaterial.map
+      if (!globe || !texture) {
+        if (attempts++ < 300) frame = window.requestAnimationFrame(configureTexture)
+        return
+      }
+      texture.wrapS = RepeatWrapping
+      texture.wrapT = ClampToEdgeWrapping
+      texture.generateMipmaps = true
+      texture.minFilter = LinearMipmapLinearFilter
+      texture.magFilter = LinearFilter
+      texture.anisotropy = Math.min(8, globe.renderer().capabilities.getMaxAnisotropy())
+      texture.needsUpdate = true
+    }
+    configureTexture()
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [globeMaterial, mode])
 
   useEffect(() => {
     mountedRef.current = true
@@ -676,7 +706,7 @@ function GlobeViewComponent({
         globeMaterial={globeMaterial}
         globeImageUrl={mode === 'earth'
           ? `${import.meta.env.BASE_URL}textures/earth-blue-marble.jpg`
-          : mode === 'historical' ? `${import.meta.env.BASE_URL}textures/historical-parchment.jpg` : undefined}
+          : mode === 'historical' ? historicalTextureUrl : undefined}
         bumpImageUrl={mode === 'earth' ? `${import.meta.env.BASE_URL}textures/earth-topology.png` : undefined}
         showGraticules={mode === 'atlas'}
         showAtmosphere
